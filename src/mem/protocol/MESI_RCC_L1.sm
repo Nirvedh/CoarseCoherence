@@ -366,7 +366,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 					
 					
 					setState(TBEs[in_msg.LineAddress],L1Icache_entry,in_msg.LineAddress,rcc.getState(in_msg.LineAddress)); //copy RCC state to this cache line
-					 if(rcc_valid(in_msg.LineAddress)) { // rcc confirms it is still valid -- do the normal thing
+					 if(isPresent(in_msg.LineAddress)) { // rcc confirms it is still valid -- do the normal thing
 		                  // The block to be prefetched is already present in the
 		                  // cache. We should drop this request.
 		                  trigger(prefetch_request_type_to_event(in_msg.Type),
@@ -382,7 +382,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
                       // this request.
 						//David add
 						setState(TBEs[in_msg.LineAddress],L1Icache_entry,in_msg.LineAddress,rcc.getState(in_msg.LineAddress)); //copy RCC state to this cache line
-					 if(rcc_valid(in_msg.LineAddress)) { // rcc confirms it is still valid -- do the normal thing
+					 if(isPresent(in_msg.LineAddress)) { // rcc confirms it is still valid -- do the normal thing
                       trigger(prefetch_request_type_to_event(in_msg.Type),
                               in_msg.LineAddress,
                               L1Dcache_entry, TBEs[in_msg.LineAddress]);
@@ -518,7 +518,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
         if (in_msg.Type == CoherenceRequestType:INV) {
 			//David add
-			if(!(cache_valid) && rcc_valid(im_msg.Addr){ 	//cache entry was invalid -- must restore to invalid after done
+			if(!(cache_valid) && isPresent(im_msg.Addr){ 	//cache entry was invalid -- must restore to invalid after done
 				trigger(Event:Inv, in_msg.Addr, cache_entry, tbe);
 				setState(tbe,cache_entry,in_msg.Addr,orig_state); //restore to invalid after
 			}
@@ -530,7 +530,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
                    in_msg.Type == CoherenceRequestType:UPGRADE) {
           // upgrade transforms to GETX due to race
 			//David add
-			if(!(cache_valid) && rcc_valid(im_msg.Addr){ 	//cache entry was invalid -- must restore to invalid after done
+			if(!(cache_valid) && isPresent(im_msg.Addr){ 	//cache entry was invalid -- must restore to invalid after done
 				trigger(Event:Fwd_GETX, in_msg.Addr, cache_entry, tbe);
 				setState(tbe,cache_entry,in_msg.Addr,orig_state); //restore to invalid after
 			}
@@ -540,7 +540,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 			}
         } else if (in_msg.Type == CoherenceRequestType:GETS) {
 						//David add
-			if(!(cache_valid) && rcc_valid(im_msg.Addr){ 	//cache entry was invalid -- must restore to invalid after done
+			if(!(cache_valid) && isPresent(im_msg.Addr){ 	//cache entry was invalid -- must restore to invalid after done
 				trigger(Event:Fwd_GETS, in_msg.Addr, cache_entry, tbe);
 				setState(tbe,cache_entry,in_msg.Addr,orig_state); //restore to invalid after
 			}
@@ -550,7 +550,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 			}
         } else if (in_msg.Type == CoherenceRequestType:GET_INSTR) {
 			//David add
-			if(!(cache_valid) && rcc_valid(im_msg.Addr){ 	//cache entry was invalid -- must restore to invalid after done
+			if(!(cache_valid) && isPresent(im_msg.Addr){ 	//cache entry was invalid -- must restore to invalid after done
 				trigger(Event:Inv, in_msg.Addr, cache_entry, tbe);
 				setState(tbe,cache_entry,in_msg.Addr,orig_state); //restore to invalid after
 			}
@@ -589,7 +589,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
 			//David changes
 		  //if (is_valid(L1Icache_entry){
-          if (is_valid(L1Icache_entry) && rcc_valid(in_msg.LineAddress)) {
+          if (is_valid(L1Icache_entry) && isPresent(in_msg.LineAddress)) {
             // The tag matches for the L1, so the L1 asks the L2 for it. -- also RCC is valid, so it is ok
 			setState(TBEs[in_msg.LineAddress],L1Icache_entry,in_msg.LineAddress,rcc.getState(in_msg.LineAddress)); //copy RCC state to this cache line
             trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress,
@@ -599,7 +599,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
 		        // Check to see if it is in the OTHER L1
 		        Entry L1Dcache_entry := getL1DCacheEntry(in_msg.LineAddress);
-		        if (is_valid(L1Dcache_entry)&& rcc_valid(in_msg.LineAddress)) {
+		        if (is_valid(L1Dcache_entry)&& isPresent(in_msg.LineAddress)) {
 		          // The block is in the wrong L1, put the request on the queue to the shared L2
 					//David add
 					setState(TBEs[in_msg.LineAddress],L1Dcache_entry,in_msg.LineAddress,rcc.getState(in_msg.LineAddress)); //copy RCC state to this cache line
@@ -615,7 +615,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
 						//David add 
 						//see if the fail was caused by valid RCC, but invalid cache entry -- then may be able to do RCC_GET
-					if(rcc_valid(in_msg.LineAddress)){
+					if(isPresent(in_msg.LineAddress)){
 							//Match in RCC! This means if we have permission, we can do RCC_GET
 							if(mandatory_request_type_to_event(in_msg.Type) == EVENT:Load || mandatory_request_type_to_event(in_msg.Type) == EVENT:Ifetch){
 								//have RCC hit, and asked for read, so we must have permission already
@@ -643,7 +643,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 		      // *** DATA ACCESS ***
 		      Entry L1Dcache_entry := getL1DCacheEntry(in_msg.LineAddress);
 		     // if (is_valid(L1Dcache_entry)) {
-				if (is_valid(L1Dcache_entry) && rcc_valid(in_msg.LineAddress)) {
+				if (is_valid(L1Dcache_entry) && isPresent(in_msg.LineAddress)) {
 				    // The tag matches for the L1, so the L1 ask the L2 for it
 					// David add set state
 					setState(TBEs[in_msg.LineAddress],L1Dcache_entry,in_msg.LineAddress,rcc.getState(in_msg.LineAddress)); //copy RCC state to this cache line
@@ -655,7 +655,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 						// Check to see if it is in the OTHER L1
 						Entry L1Icache_entry := getL1ICacheEntry(in_msg.LineAddress);
 						//if (is_valid(L1Icache_entry)) {
-						if(is_valid(L1Icache_entry) && rcc_valid(in_msg.LineAddress)) {
+						if(is_valid(L1Icache_entry) && isPresent(in_msg.LineAddress)) {
 						  // The block is in the wrong L1, put the request on the queue to the shared L2
 						  // David add set state
 						  setState(TBEs[in_msg.LineAddress],L1Icache_entry,in_msg.LineAddress,rcc.getState(in_msg.LineAddress)); //copy RCC state to this cache line
@@ -669,7 +669,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 						  // in the L1 let's see if the L2 has it.
 
 							//David add
-							if(rcc_valid(in_msg.LineAddress)){
+							if(isPresent(in_msg.LineAddress)){
 							//Match in RCC! This means if we have permission, we can do RCC_GET
 								if(mandatory_request_type_to_event(in_msg.Type) == EVENT:Load || mandatory_request_type_to_event(in_msg.Type) == EVENT:Ifetch){
 

@@ -383,7 +383,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 		
 
         //if (is_valid(cache_entry)) {
-		if((cache_valid) && rcc_valid(in_msg.Addr)){ //L2 has block, RCC permission good
+		if((cache_valid) && isPresent(in_msg.Addr)){ //L2 has block, RCC permission good
           // The L2 contains the block, so proceeded with handling the request
           trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.Addr,
                                                 in_msg.Requestor, cache_entry),
@@ -780,7 +780,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(nn_addSharer, "\n", desc="Add L1 sharer to list") {
     peek(L1RequestL2Network_in, RequestMsg) {
 			//David add
-	  assert(rcc_valid(address));
+	  assert(isPresent(address));
 	  rcc.addSharer(address, in_msg.Requestor);
 
       assert(is_valid(cache_entry));
@@ -794,7 +794,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1unblockNetwork_in, ResponseMsg) {
 
 //David add
-	  assert(rcc_valid(address));
+	  assert(isPresent(address));
 	  rcc.addSharer(address, in_msg.Requestor);
 
       assert(is_valid(cache_entry));
@@ -806,7 +806,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(kk_removeRequestSharer, "\k", desc="Remove L1 Request sharer from list") {
     peek(L1RequestL2Network_in, RequestMsg) {
 //David add
-	  assert(rcc_valid(address));
+	  assert(isPresent(address));
 	  rcc.removeSharer(address, in_msg.Requestor);
 
 
@@ -819,7 +819,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(ll_clearSharers, "\l", desc="Remove all L1 sharers from list") {
     peek(L1RequestL2Network_in, RequestMsg) {
 //David add
-	  assert(rcc_valid(address));
+	  assert(isPresent(address));
 	  rcc.clearSharers(address);
 
       assert(is_valid(cache_entry));
@@ -830,7 +830,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(mm_markExclusive, "\m", desc="set the exclusive owner") {
     peek(L1RequestL2Network_in, RequestMsg) {
 //David add
-	  assert(rcc_valid(address));
+	  assert(isPresent(address));
 	  rcc.clearSharers(address);
 	  rcc.addSharer(address, in_msg.Requestor);
 
@@ -968,14 +968,14 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
   action(a_l2splitRCC, "sRCC_l2", desc="Split RCC into 2 entries, update sharers accordingly") {
 	peek(responseL1Network_in, ResponseMsg) {
-      	assert(rcc_valid(in_msg.Addr));
+      	assert(isPresent(in_msg.Addr));
 		rcc.splitRCC_l2(in_msg.Addr,in_msg.Requestor);
 	}
   }
 
   action(a_l2allocateRCC, "aRCC_l2", desc="allocate RCC entry to L2") {
 	peek(responseL1Network_in, ResponseMsg) {
-		assert(!rcc_valid(in_msg.Addr)); // make sure entry is not already there
+		assert(!isPresent(in_msg.Addr)); // make sure entry is not already there
 		rcc.allocate_l2(in_msg.Addr,in_msg.Requestor);
 	}
   }
