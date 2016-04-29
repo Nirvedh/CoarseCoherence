@@ -1,0 +1,93 @@
+/*
+ * Copyright (c) 1999-2012 Mark D. Hill and David A. Wood
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+#ifndef __MEM_RUBY_SYSTEM_RCTABLE_HH__
+#define __MEM_RUBY_SYSTEM_RCTABLE_HH__
+
+#include <iostream>
+#include <unordered_map>
+
+//#include "mem/protocol/PrefetchBit.hh"
+#include "mem/protocol/RubyAccessMode.hh"
+#include "mem/protocol/RubyRequestType.hh"
+#include "mem/ruby/common/Address.hh"
+#include "mem/ruby/common/Consumer.hh"
+#include "mem/ruby/system/RubyPort.hh"
+#include "params/RubyRCTable.hh"
+#include "sim/sim_object.hh"
+#include "mem/ruby/system/RubyPort.hh"
+#include "mem/ruby/structures/CacheMemory.hh"
+#include "mem/protocol/L2Cache_Entry.hh"
+#include "mem/protocol/L1Cache_Entry.hh"
+//class Address;
+//class State;
+//class NetDest;
+//struct RCEntry 
+//{
+//  int granularity;
+//  Address BaseAddress;
+// State RCState;
+//  NetDest sharer;
+//};
+struct RCEntryL1 // Entry for a L1 RCTable
+{
+  int granularity;
+  int state; // Nirvedh checked that state is int in build/X86/mem files
+};
+
+struct RCEntryL2 // Entry for a L2 RCTable
+{
+  int granularity;
+  int state; // Nirvedh checked that state is int in build files
+  NetDest sharer;
+};
+class RubyRCTableParams;
+class RCTable : public SimObject
+{
+  public:
+    typedef RubyRCTableParams Params;
+    RCTable(const Params *p);
+    ~RCTable();
+    void init();
+    int test(int a) const; // Just a test function
+    void allocate(Addr address, int granularity, int state); 
+    void allocate_l2(Addr address, int state, NetDest sharer);
+    int getState(Addr address);
+    void setRCCstate(Addr address,int state);
+    int getGranularity(Addr address);
+    Addr getMask(Addr address);
+    NetDest getSharers(Addr address);
+    void addSharer(Addr address,MachineID Requester); // The build files tend to use const MachineId& but our RubySlicc.sm does not support this
+    void removeSharer(Addr address,MachineID Requester);
+    void clearSharers(Addr address);
+    void split(Addr address);
+    void splitRCC_l2(Addr address,MachineID Requester); 
+  private:
+    bool isL1Cache;  
+};
+std::ostream& operator<<(std::ostream& out, const RCTable& obj);
+#endif // __MEM_RUBY_SYSTEM_RCTABLE_HH__

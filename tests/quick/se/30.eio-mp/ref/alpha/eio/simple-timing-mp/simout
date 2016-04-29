@@ -1,0 +1,11 @@
+Redirecting stdout to build/ALPHA/tests/opt/quick/se/30.eio-mp/alpha/eio/simple-timing-mp/simout
+Redirecting stderr to build/ALPHA/tests/opt/quick/se/30.eio-mp/alpha/eio/simple-timing-mp/simerr
+gem5 Simulator System.  http://gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 compiled Nov 15 2015 14:28:00
+gem5 started Nov 15 2015 14:30:20
+gem5 executing on ribera.cs.wisc.edu, pid 29151
+command line: build/ALPHA/gem5.opt -d build/ALPHA/tests/opt/quick/se/30.eio-mp/alpha/eio/simple-timing-mp -re /scratch/nilay/GEM5/gem5/tests/run.py build/ALPHA/tests/opt/quick/se/30.eio-mp/alpha/eio/simple-timing-mp
+
+Skipping test: Test requires the 'EioProcess' SimObject.

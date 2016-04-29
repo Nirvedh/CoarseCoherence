@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# File to run the swaptions benchmark
+cd /afs/cs.wisc.edu/u/n/i/nirvedh/private/ece757/benchmarks/parsec-x86/parsec-3.0
+source ./env.sh
+parsecmgmt -a run -p splash2x.barnes -i simlarge -c gcc-hooks -n 8
+echo "Done!"
+/sbin/m5 exit
