@@ -41,6 +41,8 @@ enumeration(CoherenceRequestType, desc="...") {
 
   DMA_READ, desc="DMA Read";
   DMA_WRITE, desc="DMA Write";
+  
+  RCC_GET, desc="Request from RC table in L1 to L2 RCC"; // Ravali
 }
 
 // CoherenceResponseType
@@ -54,6 +56,9 @@ enumeration(CoherenceResponseType, desc="...") {
   UNBLOCK, desc="unblock";
   EXCLUSIVE_UNBLOCK, desc="exclusive unblock";
   INV, desc="Invalidate from directory";
+
+  NACK_RCC, desc="NACK from L1 RCC to L2 RCC"; //Ravali
+  RCC_allocate, desc="L2 (RC table) to L1 (RC table)"; // Ravali - should include DataBlk and RC table entry
 }
 
 // RequestMsg
@@ -95,14 +100,20 @@ structure(ResponseMsg, desc="...", interface="Message") {
   bool Dirty, default="false",  desc="Dirty bit";
   int AckCount, default="0",  desc="number of acks in this message";
   MessageSizeType MessageSize,  desc="size category of the message";
+  RCEntryL2 rc_entry, desc="RC entry in L2";
 
   bool functionalRead(Packet *pkt) {
     // Valid data block is only present in message with following types
     if (Type == CoherenceResponseType:DATA ||
         Type == CoherenceResponseType:DATA_EXCLUSIVE ||
-        Type == CoherenceResponseType:MEMORY_DATA) {
+        Type == CoherenceResponseType:MEMORY_DATA) { // Ravali: TODO?
 
         return testAndRead(addr, DataBlk, pkt);
+    }
+    
+    // Ravali: testandRead to write the RC entry into the packet for RCC_allocate
+    if (Type == CoherenceResponseType:RCC_allocate) {   	
+	return testAndRead_RC(addr, DataBlk, rc_entry, pkt);
     }
 
     return false;
