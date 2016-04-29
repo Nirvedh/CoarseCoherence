@@ -124,8 +124,11 @@ def create_system(options, full_system, system, dma_ports, ruby_system):
         l1_cntrl.responseToL1Cache = MessageBuffer()
         l1_cntrl.responseToL1Cache.slave = ruby_system.network.master
         # multi-coarse declaring wires between L1-controller and L1-RCC
-        l1_cntrl.requestToRCCl1 = RubyWireBuffer()
-        
+        #l1_cntrl.requestToRCCl1 = RubyWireBuffer()
+	rctable = Rctable()
+        l1_cntrl.rcc = rctable
+        l1_cntrl.rcc.isL1Cache = False;
+
 
 
     l2_index_start = block_size_bits + l2_bits
@@ -161,8 +164,8 @@ def create_system(options, full_system, system, dma_ports, ruby_system):
         l2_cntrl.L1RequestToL2Cache.slave = ruby_system.network.master
         l2_cntrl.responseToL2Cache = MessageBuffer()
         l2_cntrl.responseToL2Cache.slave = ruby_system.network.master
-        l2_cntrl.rctable = rctable
-        l2_cntrl.rctable.isL1Cache = False;
+        l2_cntrl.rcc = rctable
+        l2_cntrl.rcc.isL1Cache = False;
 
 
     phys_mem_size = sum(map(lambda r: r.size(), system.mem_ranges))

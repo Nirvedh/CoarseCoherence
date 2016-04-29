@@ -639,7 +639,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
         out_msg.Requestor := in_msg.Requestor;
         //out_msg.Destination := cache_entry.Sharers;
 		//David modify
-		out_msg.Destination := rcc.getSharers(in_msg.Addr);
+		out_msg.Destination := rcc.getSharers(in_msg.Addr)
         out_msg.Destination.remove(in_msg.Requestor);
         out_msg.MessageSize := MessageSizeType:Request_Control;
       }

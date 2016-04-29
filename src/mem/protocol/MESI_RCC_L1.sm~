@@ -282,7 +282,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
     return AccessPermission:NotPresent;
   }
 
-  void functionalRead(Addr addr, Packet *pkt) {
+  void functionalRead(Address addr, Packet *pkt) {
     TBE tbe := TBEs[addr];
     if(is_valid(tbe)) {
       testAndRead(addr, tbe.DataBlk, pkt);
