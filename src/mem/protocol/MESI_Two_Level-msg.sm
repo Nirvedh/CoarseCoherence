@@ -100,20 +100,16 @@ structure(ResponseMsg, desc="...", interface="Message") {
   bool Dirty, default="false",  desc="Dirty bit";
   int AckCount, default="0",  desc="number of acks in this message";
   MessageSizeType MessageSize,  desc="size category of the message";
-  RCEntryL2 rc_entry, desc="RC entry in L2";
+  int granularity, desc="granularity of RC entry in L2";
+  int state, desc="state of RC entry in L2";
 
   bool functionalRead(Packet *pkt) {
     // Valid data block is only present in message with following types
     if (Type == CoherenceResponseType:DATA ||
         Type == CoherenceResponseType:DATA_EXCLUSIVE ||
-        Type == CoherenceResponseType:MEMORY_DATA) { // Ravali: TODO?
-
+        Type == CoherenceResponseType:MEMORY_DATA ||
+	Type == CoherenceResponseType:RCC_allocate) { // Ravali
         return testAndRead(addr, DataBlk, pkt);
-    }
-    
-    // Ravali: testandRead to write the RC entry into the packet for RCC_allocate
-    if (Type == CoherenceResponseType:RCC_allocate) {   	
-	return testAndRead_RC(addr, DataBlk, rc_entry, pkt);
     }
 
     return false;

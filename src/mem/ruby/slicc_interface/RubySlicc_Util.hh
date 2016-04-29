@@ -41,7 +41,6 @@
 #include "mem/ruby/common/BoolVec.hh"
 #include "mem/ruby/common/DataBlock.hh"
 #include "mem/ruby/common/TypeDefines.hh"
-#include "mem/ruby/structures/RCTable.hh"
 
 inline Cycles zero_time() { return Cycles(0); }
 
@@ -133,30 +132,6 @@ testAndWrite(Addr addr, DataBlock& blk, Packet *pkt)
     }
     return false;
 }
-
-
-/* Ravali - Adding testAndRead for RC */
-inline bool 
-testAndRead_RC(Addr addr, DataBlock& blk, RCEntryL2 rc_entry, Packet *pkt)
-{
-    Addr pktLineAddr = makeLineAddress(pkt->getAddr());
-    Addr lineAddr = makeLineAddress(addr);
-
-    if (pktLineAddr == lineAddr) {
-        uint8_t *data = pkt->getPtr<uint8_t>();
-        unsigned int size_in_bytes = pkt->getSize();
-        unsigned startByte = pkt->getAddr() - lineAddr;
-	
-        memcpy (data, &rc_entry, sizeof (rc_entry));
-
-	for (unsigned i = sizeof (rc_entry); i < size_in_bytes; ++i) {
-            data[i] = blk.getByte(i + startByte - sizeof (rc_entry));
-        }
-
-        return true;
-    }
-    return false;
-
 
 
 inline int
