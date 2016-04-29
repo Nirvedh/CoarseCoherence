@@ -75,7 +75,7 @@ class RCTable : public SimObject
     void init();
     int test(int a) const; // Just a test function
     void allocate(Addr address, int granularity, int state); 
-    void allocate_l2(Addr address, int state, NetDest sharer);
+    void allocate_l2(Addr address, MachineID Requester, int state);
     int getState(Addr address);
     void setRCCstate(Addr address,int state);
     int getGranularity(Addr address);
@@ -86,6 +86,7 @@ class RCTable : public SimObject
     void clearSharers(Addr address);
     void split(Addr address);
     void splitRCC_l2(Addr address,MachineID Requester); 
+    bool isPresent(Addr address);
   private:
     bool isL1Cache;  
 };

@@ -77,7 +77,7 @@ RCTable::test(int a) const // This function was just used to test the working of
   return 2*a;
 }
 void
-RCTable::allocate(Addr address, int granularity, int state)
+RCTable::allocate(Addr address, int granularity, int state=0)
 {
   RCEntryL1 entry;
   entry.granularity = granularity;
@@ -85,12 +85,12 @@ RCTable::allocate(Addr address, int granularity, int state)
   RCTableL1.insert(make_pair(address,entry));
 }
 void
-RCTable::allocate_l2(Addr address, int state, NetDest sharer)
+RCTable::allocate_l2(Addr address, MachineID Requester, int state=0)
 {
   RCEntryL2 entry;
   entry.granularity = max_granularity;
   entry.state = state;
-  entry.sharer = sharer;
+  //entry.sharer = sharer;
   RCTableL2.insert(make_pair(address,entry));
 }
 int 
@@ -137,3 +137,9 @@ void
 RCTable::splitRCC_l2(Addr address,MachineID Requester)
 {
 } 
+bool
+RCTable::isPresent(Addr address)
+{
+	return true;
+} 
+

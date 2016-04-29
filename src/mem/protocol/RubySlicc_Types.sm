@@ -205,7 +205,7 @@ structure (Prefetcher, external = "yes") {
 structure (RCTable, external = "yes") { // Nirvedh
   int test(int);
   void allocate(Addr, int, int); 
-  void allocate_l2(Addr, int, NetDest);
+  void allocate_l2(Addr, MachineID, int);
   int getState(Addr);
   void setRCCstate(Addr,int);
   int getGranularity(Addr);
@@ -216,5 +216,6 @@ structure (RCTable, external = "yes") { // Nirvedh
   void clearSharers(Addr);
   void split(Addr);
   void splitRCC_l2(Addr,MachineID); 
+  bool isPresent(Addr);
   
 }
