@@ -86,21 +86,44 @@ RCTable::allocate(Addr address, int granularity, int state=0)
   RCTableL1.insert(make_pair(address,entry));
 }
 void
-RCTable::allocate_l2(Addr address, MachineID Requester) //int state=0) /*CHECK* state*/
+RCTable::allocate_l2(Addr address, MachineID Requester, int state=0) /*CHECK* state*/
 {
   RCEntryL2 entry;
   entry.granularity = max_granularity;
-  //entry.state = state;
+  entry.state = state;
   //entry.sharer = sharer;
   RCTableL2.insert(make_pair(address,entry));
 }
-int
-RCTable::getRCCState(Addr address)
+L1Cache_State
+RCTable::getRCCL1State(Addr address)
 {
-  return 0;
+  int gIter = max_granularity;
+  L1Cache_State state= L1Cache_State_NP;
+    while(gIter >= min_granularity)
+    {
+      RCTableL1.count(maskLowOrderBits(address,gIter));
+      gIter=gIter>>1;
+    }
+  return state;
+}
+L2Cache_State
+RCTable::getRCCL2State(Addr address)
+{
+  int gIter = max_granularity;
+  L2Cache_State state= L1Cache_State_NP;
+    while(gIter >= min_granularity)
+    {
+      RCTableL2.count(maskLowOrderBits(address,gIter));
+      gIter=gIter>>1;
+    }
+  return state;
 }
 void 
-RCTable::setRCCstate(Addr address,int state)
+RCTable::setRCCState(Addr address,L1Cache_State state)
+{
+}
+void 
+RCTable::setRCCState(Addr address,L2Cache_State state)
 {
 }
 int 

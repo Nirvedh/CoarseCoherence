@@ -43,6 +43,8 @@
 #include "mem/ruby/structures/CacheMemory.hh"
 #include "mem/protocol/L2Cache_Entry.hh"
 #include "mem/protocol/L1Cache_Entry.hh"
+#include "mem/protocol/L1Cache_State.hh"
+#include "mem/protocol/L2Cache_State.hh"
 //class Address;
 //class State;
 //class NetDest;
@@ -78,9 +80,11 @@ class RCTable : public SimObject
     void init();
     int test(int a) const; // Just a test function
     void allocate(Addr address, int granularity, int state); 
-    void allocate_l2(Addr address, MachineID Requester); //int state=0); /*CHECK* state*/
-    int getRCCState(Addr address);
-    void setRCCState(Addr address,int state);
+    void allocate_l2(Addr address, MachineID Requester,int state); /*CHECK* state*/
+    L1Cache_State getRCCL1State(Addr address);
+    L2Cache_State getRCCL2State(Addr address);
+    void setRCCState(Addr address,L1Cache_State state);
+    void setRCCState(Addr address,L2Cache_State state);
     int getGranularity(Addr address);
     Addr getMask(Addr address);
     NetDest getSharers(Addr address);
