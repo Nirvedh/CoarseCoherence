@@ -417,7 +417,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
   // Response  L1 Network - response msg to this L1 cache
   in_port(responseL1Network_in, ResponseMsg, responseToL1Cache, rank = 2) {
     if (responseL1Network_in.isReady(clockEdge())) {
-      peek(responseL1Network_in, ResponseMsg, block_on="Addr") {
+      peek(responseL1Network_in, ResponseMsg, block_on="addr") {
         assert(in_msg.Destination.isElement(machineID));
 
         Entry cache_entry := getCacheEntry(in_msg.addr);
@@ -470,7 +470,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
   // Request InterChip network - request from this L1 cache to the shared L2 // David TODO Question: comment misleading? THis is in_port ... isn't this the requests between L1s? asserting in_msg.Destination = this machineID makes me think these are input messages to this L1 from other L1s
   in_port(requestL1Network_in, RequestMsg, requestToL1Cache, rank = 1) {
     if(requestL1Network_in.isReady(clockEdge())) {
-      peek(requestL1Network_in, RequestMsg, block_on="Addr") {
+      peek(requestL1Network_in, RequestMsg, block_on="addr") {
         assert(in_msg.Destination.isElement(machineID));
 
         Entry cache_entry := getCacheEntry(in_msg.addr);

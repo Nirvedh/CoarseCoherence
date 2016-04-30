@@ -80,7 +80,7 @@ class RCTable : public SimObject
     void allocate(Addr address, int granularity, int state); 
     void allocate_l2(Addr address, MachineID Requester); //int state=0); /*CHECK* state*/
     int getRCCState(Addr address);
-    void setRCCstate(Addr address,int state);
+    void setRCCState(Addr address,int state);
     int getGranularity(Addr address);
     Addr getMask(Addr address);
     NetDest getSharers(Addr address);
@@ -90,8 +90,9 @@ class RCTable : public SimObject
     void split(Addr address);
     void splitRCC_l2(Addr address,MachineID Requester); 
     bool isPresent_RCC(Addr address);
+    bool isL1Cache; 
   private:
-    bool isL1Cache;  
+     
 };
 std::ostream& operator<<(std::ostream& out, const RCTable& obj);
 #endif // __MEM_RUBY_SYSTEM_RCTABLE_HH__

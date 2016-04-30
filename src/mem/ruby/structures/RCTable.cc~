@@ -36,10 +36,11 @@
 #include "mem/ruby/structures/RCTable.hh"
 
 using namespace std;
-int max_granularity = 256;
-int min_granularity = 16;
+int const max_granularity = 256;
+int const min_granularity = 16;
+int const gstep=1;
 
-/*CHANGE: int state --> State state*/
+/*CHECK*: int state --> State state? */
 
 unordered_map<Addr,RCEntryL1> RCTableL1; // L1 table
 unordered_map<Addr,RCEntryL2> RCTableL2; // L2 table
@@ -93,13 +94,13 @@ RCTable::allocate_l2(Addr address, MachineID Requester) //int state=0) /*CHECK* 
   //entry.sharer = sharer;
   RCTableL2.insert(make_pair(address,entry));
 }
-State
+int
 RCTable::getRCCState(Addr address)
 {
   return 0;
 }
 void 
-RCTable::setRCCstate(Addr address,State state)
+RCTable::setRCCstate(Addr address,int state)
 {
 }
 int 
@@ -138,7 +139,7 @@ RCTable::splitRCC_l2(Addr address,MachineID Requester)
 {
 } 
 bool
-RCTable::isPresent(Addr address)
+RCTable::isPresent_RCC(Addr address)
 {
 	return true;
 } 

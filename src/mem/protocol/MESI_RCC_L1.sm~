@@ -162,7 +162,29 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
   }
 
   TBETable TBEs, template="<L1Cache_TBE>", constructor="m_number_of_TBEs";
-
+  
+  /*structure(RCTable, external="yes") {
+    //RCTable(const Params *p);
+    ~RCTable();
+    void init();
+    int test(int a) const;
+    
+    void allocate(Addr, int, int); //int state
+    void allocate_l2(Addr, MachineID); //int state=0); // *CHECK* state
+    int getRCCState(Addr);
+    void setRCCstate(Addr, int);//int state
+    int getGranularity(Addr);
+    Addr getMask(Addr);
+    NetDest getSharers(Addr);
+    void addSharer(Addr, MachineID); // The build files tend to use const MachineId& but our RubySlicc.sm does not support this
+    void removeSharer(Addr, MachineID);
+    void clearSharers(Addr);
+    void split(Addr);
+    void splitRCC_l2(Addr,MachineID); 
+    bool isPresent_RCC(Addr);
+  }
+  RCTable rcc;*/
+  
   int l2_select_low_bit, default="RubySystem::getBlockSizeBits()";
 
   Tick clockEdge();
@@ -460,7 +482,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
         if (in_msg.Type == CoherenceRequestType:INV) {
 			//David add
-			if(!(cache_valid) && TBEs.isPresent(in_msg.addr)){ 	//cache entry was invalid -- must restore to invalid after done //Ravali -- isPresent(in_msg.addr)-->TBEs.isPresent(in_msg.addr)
+			if(!(cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ 	//cache entry was invalid -- must restore to invalid after done
 				trigger(Event:Inv, in_msg.addr, cache_entry, tbe);
 				setState(tbe, cache_entry, in_msg.addr, orig_state); //restore to invalid after
 			}
@@ -472,7 +494,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
                    in_msg.Type == CoherenceRequestType:UPGRADE) {
           // upgrade transforms to GETX due to race
 			//David add
-			if(!(cache_valid) && TBEs.isPresent(in_msg.addr)){ 	//cache entry was invalid -- must restore to invalid after done //Ravali
+			if(!(cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ 	//cache entry was invalid -- must restore to invalid after done //Ravali
 				trigger(Event:Fwd_GETX, in_msg.addr, cache_entry, tbe);
 				setState(tbe, cache_entry, in_msg.addr, orig_state); //restore to invalid after
 			}
@@ -482,7 +504,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 			}
         } else if (in_msg.Type == CoherenceRequestType:GETS) {
 						//David add
-			if(!(cache_valid) && TBEs.isPresent(in_msg.addr)){ 	//cache entry was invalid -- must restore to invalid after done //Ravali
+			if(!(cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ 	//cache entry was invalid -- must restore to invalid after done //Ravali
 				trigger(Event:Fwd_GETS, in_msg.addr, cache_entry, tbe);
 				setState(tbe, cache_entry, in_msg.addr, orig_state); //restore to invalid after
 			}
@@ -492,7 +514,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 			}
         } else if (in_msg.Type == CoherenceRequestType:GET_INSTR) {
 			//David add
-			if(!(cache_valid) && TBEs.isPresent(in_msg.addr)){ 	//cache entry was invalid -- must restore to invalid after done //Ravali
+			if(!(cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ 	//cache entry was invalid -- must restore to invalid after done //Ravali
 				trigger(Event:Inv, in_msg.addr, cache_entry, tbe);
 				setState(tbe, cache_entry, in_msg.addr, orig_state); //restore to invalid after
 			}
@@ -531,7 +553,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
 			//David changes
 		  //if (is_valid(L1Icache_entry){
-          if (is_valid(L1Icache_entry) && TBEs.isPresent(in_msg.LineAddress)) { //Ravali  -- TBEs.
+          if (is_valid(L1Icache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali.
             // The tag matches for the L1, so the L1 asks the L2 for it. -- also RCC is valid, so it is ok
 			// setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, rcc.getRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
             trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress,
@@ -542,7 +564,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
 		        // Check to see if it is in the OTHER L1
 		        Entry L1Dcache_entry := getL1DCacheEntry(in_msg.LineAddress);
-		        if (is_valid(L1Dcache_entry)&& TBEs.isPresent(in_msg.LineAddress)) { //Ravali -- TBEs.
+		        if (is_valid(L1Dcache_entry)&& rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 		          // The block is in the wrong L1, put the request on the queue to the shared L2
 					//David add
 					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, rcc.getRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
@@ -558,7 +580,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
 						//David add 
 						//see if the fail was caused by valid RCC, but invalid cache entry -- then may be able to do RCC_GET
-					if(TBEs.isPresent(in_msg.LineAddress)){ //Ravali -- TBEs.
+					if(rcc.isPresent_RCC(in_msg.LineAddress)){ //Ravali
 							//Match in RCC! This means if we have permission, we can do RCC_GET
 							if(mandatory_request_type_to_event(in_msg.Type) == Event:Load || mandatory_request_type_to_event(in_msg.Type) == Event:Ifetch){
 								//have RCC hit, and asked for read, so we must have permission already
@@ -586,7 +608,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 		      // *** DATA ACCESS ***
 		      Entry L1Dcache_entry := getL1DCacheEntry(in_msg.LineAddress);
 		     // if (is_valid(L1Dcache_entry)) {
-				if (is_valid(L1Dcache_entry) && TBEs.isPresent(in_msg.LineAddress)) { //Ravali -- TBEs.
+				if (is_valid(L1Dcache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 				    // The tag matches for the L1, so the L1 ask the L2 for it
 					// David add set state
 					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, rcc.getRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
@@ -598,7 +620,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 						// Check to see if it is in the OTHER L1
 						Entry L1Icache_entry := getL1ICacheEntry(in_msg.LineAddress);
 						//if (is_valid(L1Icache_entry)) {
-						if(is_valid(L1Icache_entry) && TBEs.isPresent(in_msg.LineAddress)) { //Ravali -- TBEs.
+						if(is_valid(L1Icache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 						  // The block is in the wrong L1, put the request on the queue to the shared L2
 						  // David add set state
 						  //setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, rcc.getRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
@@ -612,7 +634,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 						  // in the L1 let's see if the L2 has it.
 
 							//David add
-							if(TBEs.isPresent(in_msg.LineAddress)){ //Ravali -- TBEs.
+							if(rcc.isPresent_RCC(in_msg.LineAddress)){ //Ravali
 							//Match in RCC! This means if we have permission, we can do RCC_GET
 								if(mandatory_request_type_to_event(in_msg.Type) == Event:Load || mandatory_request_type_to_event(in_msg.Type) == Event:Ifetch){
 

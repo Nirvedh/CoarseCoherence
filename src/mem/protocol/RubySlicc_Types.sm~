@@ -207,7 +207,7 @@ structure (RCTable, external = "yes") { // Nirvedh
   void allocate(Addr, int, int); 
   void allocate_l2(Addr, MachineID, int);
   int getRCCState(Addr);
-  void setRCCState(Addr,int);
+  void setRCCtate(Addr,int);
   int getGranularity(Addr);
   Addr getMask(Addr);
   NetDest getSharers(Addr);

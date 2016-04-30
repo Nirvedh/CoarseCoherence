@@ -154,6 +154,29 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
   TBETable TBEs, template="<L2Cache_TBE>", constructor="m_number_of_TBEs";
 
+ /*structure(RCTable, external="yes") {
+    //typedef RubyRCTableParams Params;
+    RCTable(const Params *p);
+    ~RCTable();
+    void init();
+    int test(int a) const;
+    
+    void allocate(Addr, int, int); //int state
+    void allocate_l2(Addr, MachineID); //int state=0); // *CHECK* state
+    int getRCCState(Addr);
+    void setRCCstate(Addr, int);//int state
+    int getGranularity(Addr);
+    Addr getMask(Addr);
+    NetDest getSharers(Addr);
+    void addSharer(Addr, MachineID); // The build files tend to use const MachineId& but our RubySlicc.sm does not support this
+    void removeSharer(Addr, MachineID);
+    void clearSharers(Addr);
+    void split(Addr);
+    void splitRCC_l2(Addr,MachineID); 
+    bool isPresent_RCC(Addr);
+  }
+  RCTable rcc;*/
+
   Tick clockEdge();
   Tick cyclesToTicks(Cycles c);
   Cycles ticksToCycles(Tick t);
@@ -388,11 +411,11 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
 		//David add
 		bool cache_valid := is_valid(cache_entry);
-		int orig_state := getState(tbe,cache_entry,in_msg.addr);
+		State orig_state := getState(tbe,cache_entry,in_msg.addr);
 		
 
         //if (is_valid(cache_entry)) {
-		if((cache_valid) && TBEs.isPresent(in_msg.addr)){ //L2 has block, RCC permission good
+		if((cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ //L2 has block, RCC permission good //Ravali
           // The L2 contains the block, so proceeded with handling the request
           trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
                                                 in_msg.Requestor, cache_entry),
@@ -789,7 +812,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(nn_addSharer, "\n", desc="Add L1 sharer to list") {
     peek(L1RequestL2Network_in, RequestMsg) {
 			//David add
-	  assert(TBEs.isPresent(address));
+	  assert(rcc.isPresent_RCC(address)); //Ravali
 	  rcc.addSharer(address, in_msg.Requestor);
 
       assert(is_valid(cache_entry));
@@ -803,7 +826,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1unblockNetwork_in, ResponseMsg) {
 
 //David add
-	  assert(TBEs.isPresent(address));
+	  assert(rcc.isPresent_RCC(address));
 	  rcc.addSharer(address, in_msg.Sender); /*CHECK*/
 	  //rcc.addSharer(address, in_msg.Requestor);
 
@@ -816,7 +839,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(kk_removeRequestSharer, "\k", desc="Remove L1 Request sharer from list") {
     peek(L1RequestL2Network_in, RequestMsg) {
 //David add
-	  assert(TBEs.isPresent(address));
+	  assert(rcc.isPresent_RCC(address)); //Ravali
 	  rcc.removeSharer(address, in_msg.Requestor);
 
 
@@ -829,7 +852,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(ll_clearSharers, "\l", desc="Remove all L1 sharers from list") {
     peek(L1RequestL2Network_in, RequestMsg) {
 //David add
-	  assert(TBEs.isPresent(address));
+	  assert(rcc.isPresent_RCC(address));
 	  rcc.clearSharers(address);
 
       assert(is_valid(cache_entry));
@@ -840,7 +863,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(mm_markExclusive, "\m", desc="set the exclusive owner") {
     peek(L1RequestL2Network_in, RequestMsg) {
 //David add
-	  assert(TBEs.isPresent(address));
+	  assert(rcc.isPresent_RCC(address)); //Ravali
 	  rcc.clearSharers(address);
 	  rcc.addSharer(address, in_msg.Requestor);
 
@@ -980,14 +1003,14 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
   action(a_l2splitRCC, "sRCC_l2", desc="Split RCC into 2 entries, update sharers accordingly") {
 	peek(responseL2Network_in, ResponseMsg) { // *CHECK* responseL1Network_in --> responseL2Network_in?
-      	assert(TBEs.isPresent(in_msg.addr));
+      	assert(rcc.isPresent_RCC(in_msg.addr)); //Ravali
 		rcc.splitRCC_l2(in_msg.addr,in_msg.Sender); // *CHECK* Requestor --> Sender?
 	}
   }
 
   action(a_l2allocateRCC, "aRCC_l2", desc="allocate RCC entry to L2") {
 	peek(responseL2Network_in, ResponseMsg) { //// *CHECK* responseL1Network_in --> responseL2Network_in?
-		assert(!TBEs.isPresent(in_msg.addr)); // make sure entry is not already there
+		assert(!rcc.isPresent_RCC(in_msg.addr)); // make sure entry is not already there  //Ravali
 		//rcc.allocate_l2(in_msg.addr,in_msg.Sender); // *CHECK* allocate_l2; Requestor --> Sender?
 	}
   }

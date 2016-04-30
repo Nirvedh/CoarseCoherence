@@ -411,7 +411,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
 		//David add
 		bool cache_valid := is_valid(cache_entry);
-		State orig_state := getState(tbe,cache_entry,in_msg.addr);
+		//State orig_state := getState(tbe,cache_entry,in_msg.addr);
 		
 
         //if (is_valid(cache_entry)) {

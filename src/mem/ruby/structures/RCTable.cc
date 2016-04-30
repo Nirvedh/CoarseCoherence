@@ -36,8 +36,9 @@
 #include "mem/ruby/structures/RCTable.hh"
 
 using namespace std;
-int max_granularity = 256;
-int min_granularity = 16;
+int const max_granularity = 256;
+int const min_granularity = 16;
+int const gstep=1;
 
 /*CHECK*: int state --> State state? */
 
@@ -99,7 +100,7 @@ RCTable::getRCCState(Addr address)
   return 0;
 }
 void 
-RCTable::setRCCstate(Addr address,int state)
+RCTable::setRCCState(Addr address,int state)
 {
 }
 int 
