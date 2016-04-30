@@ -51,8 +51,17 @@ structure(InPort, external = "yes", primitive="yes") {
 
 external_type(NodeID, default="0", primitive="yes");
 external_type(MachineID);
-external_type(L1Cache_State); //Nirvedh
-external_type(L2Cache_State);
+//external_type(L1Cache_State); //Nirvedh
+//external_type(L2Cache_State); //Nirvedh
+
+
+//structure(L1Cache_State,external = "yes", non_obj="yes") {
+  
+//}//Nirvedh
+//structure(L2Cache_State,external = "yes", non_obj="yes") {
+  
+//}//Nirvedh
+
 
 structure (Set, external = "yes", non_obj="yes") {
   void setSize(int);
@@ -206,12 +215,12 @@ structure (Prefetcher, external = "yes") {
 }
 structure (RCTable, external = "yes") { // Nirvedh
   int test(int);
-  void allocate(Addr, int, int); 
-  void allocate_l2(Addr, MachineID, int);
-  L1Cache_State getRCCL1State(Addr);
-  L2Cache_State getRCCL2State(Addr);
-  void setRCCState(Addr,L1Cache_State);
-  void setRCCState(Addr,L2Cache_State);
+  void allocate(Addr, int);//, L1Cache_State); 
+  void allocate_l2(Addr, MachineID);//, L2Cache_State);
+  std::string getRCCL1State(Addr);
+  std::string getRCCL2State(Addr);
+  void setRCCL1State(Addr,std::string);
+  void setRCCL2State(Addr,std::string);
   int getGranularity(Addr);
   Addr getMask(Addr);
   NetDest getSharers(Addr);
