@@ -59,13 +59,13 @@
 struct RCEntryL1 // Entry for a L1 RCTable
 {
   int granularity;
-  int state; // Nirvedh checked that state is int in build/X86/mem files
+  State state; // Nirvedh checked that state is int in build/X86/mem files
 };
 
 struct RCEntryL2 // Entry for a L2 RCTable
 {
   int granularity;
-  int state; // Nirvedh checked that state is int in build files
+  State state; // Nirvedh checked that state is int in build files
   NetDest sharer;
 };
 class RubyRCTableParams;
@@ -79,8 +79,8 @@ class RCTable : public SimObject
     int test(int a) const; // Just a test function
     void allocate(Addr address, int granularity, int state); 
     void allocate_l2(Addr address, MachineID Requester); //int state=0); /*CHECK* state*/
-    int getRCCState(Addr address);
-    void setRCCstate(Addr address,int state);
+    State getRCCState(Addr address);
+    void setRCCstate(Addr address,State state);
     int getGranularity(Addr address);
     Addr getMask(Addr address);
     NetDest getSharers(Addr address);
@@ -89,7 +89,7 @@ class RCTable : public SimObject
     void clearSharers(Addr address);
     void split(Addr address);
     void splitRCC_l2(Addr address,MachineID Requester); 
-    bool isPresent_RCC(Addr address);
+    bool isPresent(Addr address);
   private:
     bool isL1Cache;  
 };

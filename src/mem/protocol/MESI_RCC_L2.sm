@@ -25,6 +25,8 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+/* Additions:
+isReady - ClockEdge()*/
 
 machine(L2Cache, "MESI Directory L2 Cache CMP")
  : RCTable * rcc;
@@ -115,6 +117,9 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     Exclusive_Unblock, desc="Unblock from L1 requestor";
 
     MEM_Inv, desc="Invalidation from directory";
+
+    RCC_Get, desc=""; //Ravali -- Adding missing event
+    Nack, desc="";
   }
 
   // TYPES
@@ -130,7 +135,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
   // TBE fields
   structure(TBE, desc="...") {
-    Address Addr,            desc="Physical address for this TBE";
+    Addr addr,            desc="Physical address for this TBE";
     State TBEState,             desc="Transient state";
     DataBlock DataBlk,          desc="Buffer for the data block";
     bool Dirty, default="false", desc="Data is Dirty";
@@ -141,27 +146,54 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   }
 
   structure(TBETable, external="yes") {
-    TBE lookup(Address);
-    void allocate(Address);
-    void deallocate(Address);
-    bool isPresent(Address);
+    TBE lookup(Addr);
+    void allocate(Addr);
+    void deallocate(Addr);
+    bool isPresent(Addr);
   }
 
   TBETable TBEs, template="<L2Cache_TBE>", constructor="m_number_of_TBEs";
+
+ /*structure(RCTable, external="yes") {
+    //typedef RubyRCTableParams Params;
+    RCTable(const Params *p);
+    ~RCTable();
+    void init();
+    int test(int a) const;
+    
+    void allocate(Addr, int, int); //int state
+    void allocate_l2(Addr, MachineID); //int state=0); // *CHECK* state
+    int getRCCState(Addr);
+    void setRCCstate(Addr, int);//int state
+    int getGranularity(Addr);
+    Addr getMask(Addr);
+    NetDest getSharers(Addr);
+    void addSharer(Addr, MachineID); // The build files tend to use const MachineId& but our RubySlicc.sm does not support this
+    void removeSharer(Addr, MachineID);
+    void clearSharers(Addr);
+    void split(Addr);
+    void splitRCC_l2(Addr,MachineID); 
+    bool isPresent_RCC(Addr);
+  }
+  RCTable rcc;*/
+
+  Tick clockEdge();
+  Tick cyclesToTicks(Cycles c);
+  Cycles ticksToCycles(Tick t);
 
   void set_cache_entry(AbstractCacheEntry a);
   void unset_cache_entry();
   void set_tbe(TBE a);
   void unset_tbe();
-  void wakeUpBuffers(Address a);
+  void wakeUpBuffers(Addr a);
   void profileMsgDelay(int virtualNetworkType, Cycles c);
 
   // inclusive cache, returns L2 entries only
-  Entry getCacheEntry(Address addr), return_by_pointer="yes" {
+  Entry getCacheEntry(Addr addr), return_by_pointer="yes" {
     return static_cast(Entry, "pointer", L2cache[addr]);
   }
 
-  bool isSharer(Address addr, MachineID requestor, Entry cache_entry) {
+  bool isSharer(Addr addr, MachineID requestor, Entry cache_entry) {
     if (is_valid(cache_entry)) {
       return cache_entry.Sharers.isElement(requestor);
     } else {
@@ -169,14 +201,14 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
-  void addSharer(Address addr, MachineID requestor, Entry cache_entry) {
+  void addSharer(Addr addr, MachineID requestor, Entry cache_entry) {
     assert(is_valid(cache_entry));
     DPRINTF(RubySlicc, "machineID: %s, requestor: %s, address: %s\n",
             machineID, requestor, addr);
     cache_entry.Sharers.add(requestor);
   }
 
-  State getState(TBE tbe, Entry cache_entry, Address addr) {
+  State getState(TBE tbe, Entry cache_entry, Addr addr) {
     if(is_valid(tbe)) {
       return tbe.TBEState;
     } else if (is_valid(cache_entry)) {
@@ -185,7 +217,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     return State:NP;
   }
 
-  void setState(TBE tbe, Entry cache_entry, Address addr, State state) {
+  void setState(TBE tbe, Entry cache_entry, Addr addr, State state) {
     // MUST CHANGE
     if (is_valid(tbe)) {
       tbe.TBEState := state;
@@ -196,7 +228,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
-  AccessPermission getAccessPermission(Address addr) {
+  AccessPermission getAccessPermission(Addr addr) {
     TBE tbe := TBEs[addr];
     if(is_valid(tbe)) {
       DPRINTF(RubySlicc, "%s\n", L2Cache_State_to_permission(tbe.TBEState));
@@ -213,7 +245,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     return AccessPermission:NotPresent;
   }
 
-  void functionalRead(Address addr, Packet *pkt) {
+  void functionalRead(Addr addr, Packet *pkt) {
     TBE tbe := TBEs[addr];
     if(is_valid(tbe)) {
       testAndRead(addr, tbe.DataBlk, pkt);
@@ -222,7 +254,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
-  int functionalWrite(Address addr, Packet *pkt) {
+  int functionalWrite(Addr addr, Packet *pkt) {
     int num_functional_writes := 0;
 
     TBE tbe := TBEs[addr];
@@ -237,13 +269,13 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     return num_functional_writes;
   }
 
-  void setAccessPermission(Entry cache_entry, Address addr, State state) {
+  void setAccessPermission(Entry cache_entry, Addr addr, State state) {
     if (is_valid(cache_entry)) {
       cache_entry.changePermission(L2Cache_State_to_permission(state));
     }
   }
 
-  Event L1Cache_request_type_to_event(CoherenceRequestType type, Address addr,
+  Event L1Cache_request_type_to_event(CoherenceRequestType type, Addr addr,
                                       MachineID requestor, Entry cache_entry) {
     if(type == CoherenceRequestType:GETS) {
       return Event:L1_GETS;
@@ -264,7 +296,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
         return Event:L1_PUTX_old;
       }
 	} else if (type == CoherenceRequestType:RCC_GET) { //David add
-		return Event:RCC_GET;
+		return Event:RCC_Get;
     } else {
       DPRINTF(RubySlicc, "address: %s, Request Type: %s\n", addr, type);
       error("Invalid L1 forwarded request type");
@@ -288,19 +320,19 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
 
   in_port(L1unblockNetwork_in, ResponseMsg, unblockToL2Cache, rank = 2) {
-    if(L1unblockNetwork_in.isReady()) {
+     if(L1unblockNetwork_in.isReady(clockEdge())) {
       peek(L1unblockNetwork_in,  ResponseMsg) {
-        Entry cache_entry := getCacheEntry(in_msg.Addr);
-        TBE tbe := TBEs[in_msg.Addr];
+        Entry cache_entry := getCacheEntry(in_msg.addr);
+        TBE tbe := TBEs[in_msg.addr];
         DPRINTF(RubySlicc, "Addr: %s State: %s Sender: %s Type: %s Dest: %s\n",
-                in_msg.Addr, getState(tbe, cache_entry, in_msg.Addr),
+                in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
                 in_msg.Sender, in_msg.Type, in_msg.Destination);
 
         assert(in_msg.Destination.isElement(machineID));
         if (in_msg.Type == CoherenceResponseType:EXCLUSIVE_UNBLOCK) {
-          trigger(Event:Exclusive_Unblock, in_msg.Addr, cache_entry, tbe);
+          trigger(Event:Exclusive_Unblock, in_msg.addr, cache_entry, tbe);
         } else if (in_msg.Type == CoherenceResponseType:UNBLOCK) {
-          trigger(Event:Unblock, in_msg.Addr, cache_entry, tbe);
+          trigger(Event:Unblock, in_msg.addr, cache_entry, tbe);
         } else {
           error("unknown unblock message");
         }
@@ -316,39 +348,39 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 ************************************************************************************************************
 */
   in_port(responseL2Network_in, ResponseMsg, responseToL2Cache, rank = 1) {
-    if (responseL2Network_in.isReady()) {
+    if (responseL2Network_in.isReady(clockEdge())) {
       peek(responseL2Network_in, ResponseMsg) {
         // test wether it's from a local L1 or an off chip source
         assert(in_msg.Destination.isElement(machineID));
-        Entry cache_entry := getCacheEntry(in_msg.Addr);
-        TBE tbe := TBEs[in_msg.Addr];
+        Entry cache_entry := getCacheEntry(in_msg.addr);
+        TBE tbe := TBEs[in_msg.addr];
 
         if(machineIDToMachineType(in_msg.Sender) == MachineType:L1Cache) {
           if(in_msg.Type == CoherenceResponseType:DATA) {
             if (in_msg.Dirty) {
-              trigger(Event:WB_Data, in_msg.Addr, cache_entry, tbe);
+              trigger(Event:WB_Data, in_msg.addr, cache_entry, tbe);
             } else {
-              trigger(Event:WB_Data_clean, in_msg.Addr, cache_entry, tbe);
+              trigger(Event:WB_Data_clean, in_msg.addr, cache_entry, tbe);
             }
           } else if (in_msg.Type == CoherenceResponseType:ACK) {
             if ((getPendingAcks(tbe) - in_msg.AckCount) == 0) {
-              trigger(Event:Ack_all, in_msg.Addr, cache_entry, tbe);
+              trigger(Event:Ack_all, in_msg.addr, cache_entry, tbe);
             } else {
-              trigger(Event:Ack, in_msg.Addr, cache_entry, tbe);
+              trigger(Event:Ack, in_msg.addr, cache_entry, tbe);
             }
-          } else if (in_msg.Type == CoherenceResponseType:NACK) { //David add
-				trigger(Event:NACK, in_msg.Addr, cache_entry, tbe);
+          } else if (in_msg.Type == CoherenceResponseType:NACK_RCC) { //David add
+				trigger(Event:Nack, in_msg.addr, cache_entry, tbe);
 		  }else {
             error("unknown message type");
           }
 
         } else { // external message
           if(in_msg.Type == CoherenceResponseType:MEMORY_DATA) {
-              trigger(Event:Mem_Data, in_msg.Addr, cache_entry, tbe);
+              trigger(Event:Mem_Data, in_msg.addr, cache_entry, tbe);
           } else if(in_msg.Type == CoherenceResponseType:MEMORY_ACK) {
-              trigger(Event:Mem_Ack, in_msg.Addr, cache_entry, tbe);
+              trigger(Event:Mem_Ack, in_msg.addr, cache_entry, tbe);
           } else if(in_msg.Type == CoherenceResponseType:INV) {
-              trigger(Event:MEM_Inv, in_msg.Addr, cache_entry, tbe);
+              trigger(Event:MEM_Inv, in_msg.addr, cache_entry, tbe);
           } else {
             error("unknown message type");
           }
@@ -365,13 +397,13 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 ************************************************************************************************************
 */
   in_port(L1RequestL2Network_in, RequestMsg, L1RequestToL2Cache, rank = 0) {
-    if(L1RequestL2Network_in.isReady()) {
+    if(L1RequestL2Network_in.isReady(clockEdge())) {
       peek(L1RequestL2Network_in,  RequestMsg) {
-        Entry cache_entry := getCacheEntry(in_msg.Addr);
-        TBE tbe := TBEs[in_msg.Addr];
+        Entry cache_entry := getCacheEntry(in_msg.addr);
+        TBE tbe := TBEs[in_msg.addr];
 
         DPRINTF(RubySlicc, "Addr: %s State: %s Req: %s Type: %s Dest: %s\n",
-                in_msg.Addr, getState(tbe, cache_entry, in_msg.Addr),
+                in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
                 in_msg.Requestor, in_msg.Type, in_msg.Destination);
 
         assert(machineIDToMachineType(in_msg.Requestor) == MachineType:L1Cache);
@@ -379,34 +411,34 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
 		//David add
 		bool cache_valid := is_valid(cache_entry);
-		State orig_state := getState(tbe,cache_entry,in_msg.Addr);
+		State orig_state := getState(tbe,cache_entry,in_msg.addr);
 		
 
         //if (is_valid(cache_entry)) {
-		if((cache_valid) && isPresent(in_msg.Addr)){ //L2 has block, RCC permission good
+		if((cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ //L2 has block, RCC permission good //Ravali
           // The L2 contains the block, so proceeded with handling the request
-          trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.Addr,
+          trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
                                                 in_msg.Requestor, cache_entry),
-                  in_msg.Addr, cache_entry, tbe);
+                  in_msg.addr, cache_entry, tbe);
 			//David add
-			setState(tbe,cache_entry,in_msg.Addr,rcc.getState(in_msg.Addr)); // overwrite cache entry to what RCC is
+			// setState(tbe,cache_entry,in_msg.addr,rcc.getState(in_msg.addr)); // overwrite cache entry to what RCC is /*CHECK*/
 
         } else { // not valid or RCC miss -- need to request memory to get valid data and add RCC entry
 			
-          if (L2cache.cacheAvail(in_msg.Addr)) {
+          if (L2cache.cacheAvail(in_msg.addr)) {
             // L2 does't have the line, but we have space for it in the L2
-            trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.Addr,
+            trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
                                                   in_msg.Requestor, cache_entry),
-                    in_msg.Addr, cache_entry, tbe);
+                    in_msg.addr, cache_entry, tbe);
           } else {
             // No room in the L2, so we need to make room before handling the request
-            Entry L2cache_entry := getCacheEntry(L2cache.cacheProbe(in_msg.Addr));
+            Entry L2cache_entry := getCacheEntry(L2cache.cacheProbe(in_msg.addr));
             if (isDirty(L2cache_entry)) {
-              trigger(Event:L2_Replacement, L2cache.cacheProbe(in_msg.Addr),
-                      L2cache_entry, TBEs[L2cache.cacheProbe(in_msg.Addr)]);
+              trigger(Event:L2_Replacement, L2cache.cacheProbe(in_msg.addr),
+                      L2cache_entry, TBEs[L2cache.cacheProbe(in_msg.addr)]);
             } else {
-              trigger(Event:L2_Replacement_clean, L2cache.cacheProbe(in_msg.Addr),
-                      L2cache_entry, TBEs[L2cache.cacheProbe(in_msg.Addr)]);
+              trigger(Event:L2_Replacement_clean, L2cache.cacheProbe(in_msg.addr),
+                      L2cache_entry, TBEs[L2cache.cacheProbe(in_msg.addr)]);
             }
           }
         }
@@ -420,7 +452,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(a_issueFetchToMemory, "a", desc="fetch data from memory") {
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(DirRequestL2Network_out, RequestMsg, l2_request_latency) {
-        out_msg.Addr := address;
+        out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:GETS;
         out_msg.Requestor := machineID;
         out_msg.Destination.add(map_Address_to_Directory(address));
@@ -433,7 +465,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
-        out_msg.Addr := address;
+        out_msg.addr := address;
         out_msg.Type := in_msg.Type;
         out_msg.Requestor := in_msg.Requestor;
         out_msg.Destination.add(cache_entry.Exclusive);
@@ -445,7 +477,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(c_exclusiveReplacement, "c", desc="Send data to memory") {
     enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
       assert(is_valid(cache_entry));
-      out_msg.Addr := address;
+      out_msg.addr := address;
       out_msg.Type := CoherenceResponseType:MEMORY_DATA;
       out_msg.Sender := machineID;
       out_msg.Destination.add(map_Address_to_Directory(address));
@@ -457,7 +489,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
   action(c_exclusiveCleanReplacement, "cc", desc="Send ack to memory for clean replacement") {
     enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
-      out_msg.Addr := address;
+      out_msg.addr := address;
       out_msg.Type := CoherenceResponseType:ACK;
       out_msg.Sender := machineID;
       out_msg.Destination.add(map_Address_to_Directory(address));
@@ -468,7 +500,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(ct_exclusiveReplacementFromTBE, "ct", desc="Send data to memory") {
     enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
       assert(is_valid(tbe));
-      out_msg.Addr := address;
+      out_msg.addr := address;
       out_msg.Type := CoherenceResponseType:MEMORY_DATA;
       out_msg.Sender := machineID;
       out_msg.Destination.add(map_Address_to_Directory(address));
@@ -482,7 +514,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
-        out_msg.Addr := address;
+        out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:DATA;
         out_msg.Sender := machineID;
         out_msg.Destination.add(in_msg.Requestor);
@@ -505,7 +537,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
-        out_msg.Addr := address;
+        out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:DATA_EXCLUSIVE;
         out_msg.Sender := machineID;
         out_msg.Destination.add(in_msg.Requestor);
@@ -528,7 +560,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
-        out_msg.Addr := address;
+        out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:DATA;
         out_msg.Sender := machineID;
         out_msg.Destination.add(in_msg.Requestor);
@@ -548,7 +580,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     assert(tbe.L1_GetS_IDs.count() > 0);
     enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
       assert(is_valid(cache_entry));
-      out_msg.Addr := address;
+      out_msg.addr := address;
       out_msg.Type := CoherenceResponseType:DATA;
       out_msg.Sender := machineID;
       out_msg.Destination := tbe.L1_GetS_IDs;  // internal nodes
@@ -566,7 +598,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     assert(tbe.L1_GetS_IDs.count() == 1);
     enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
       assert(is_valid(cache_entry));
-      out_msg.Addr := address;
+      out_msg.addr := address;
       out_msg.Type := CoherenceResponseType:DATA_EXCLUSIVE;
       out_msg.Sender := machineID;
       out_msg.Destination := tbe.L1_GetS_IDs;  // internal nodes
@@ -584,14 +616,14 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
       assert(is_valid(tbe));
       assert(is_valid(cache_entry));
-      out_msg.Addr := address;
+      out_msg.addr := address;
       out_msg.Type := CoherenceResponseType:DATA;
       out_msg.Sender := machineID;
       out_msg.Destination.add(tbe.L1_GetX_ID);
       DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
       out_msg.DataBlk := cache_entry.DataBlk;
       DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
-              out_msg.Addr, out_msg.Destination, out_msg.DataBlk);
+              out_msg.addr, out_msg.Destination, out_msg.DataBlk);
       out_msg.MessageSize := MessageSizeType:Response_Data;
 
 
@@ -604,12 +636,12 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(f_sendInvToSharers, "f", desc="invalidate sharers for L2 replacement") {
     enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
       assert(is_valid(cache_entry));
-      out_msg.Addr := address;
+      out_msg.addr := address;
       out_msg.Type := CoherenceRequestType:INV;
       out_msg.Requestor := machineID;
       //out_msg.Destination := cache_entry.Sharers;
 //David modify
-	  out_msg.Destination := rcc.getSharers();
+	  out_msg.Destination := rcc.getSharers(address); //CHECK address
       out_msg.MessageSize := MessageSizeType:Request_Control;
     }
   }
@@ -619,12 +651,12 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
-        out_msg.Addr := address;
+        out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:INV;
         out_msg.Requestor := in_msg.Requestor;
         //out_msg.Destination := cache_entry.Sharers;
 		//David modify
-		out_msg.Destination := rcc.getSharers(in_msg.Addr);
+		out_msg.Destination := rcc.getSharers(in_msg.addr);
         out_msg.MessageSize := MessageSizeType:Request_Control;
       }
     }
@@ -634,12 +666,12 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
-        out_msg.Addr := address;
+        out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:INV;
         out_msg.Requestor := in_msg.Requestor;
         //out_msg.Destination := cache_entry.Sharers;
 		//David modify
-		out_msg.Destination := rcc.getSharers(in_msg.Addr);
+		out_msg.Destination := rcc.getSharers(in_msg.addr);
         out_msg.Destination.remove(in_msg.Requestor);
         out_msg.MessageSize := MessageSizeType:Request_Control;
       }
@@ -664,15 +696,15 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   }
 
   action(jj_popL1RequestQueue, "\j", desc="Pop incoming L1 request queue") {
-    profileMsgDelay(0, L1RequestL2Network_in.dequeue());
+    profileMsgDelay(0, ticksToCycles(L1RequestL2Network_in.dequeue(clockEdge())));
   }
 
   action(k_popUnblockQueue, "k", desc="Pop incoming unblock queue") {
-    profileMsgDelay(0, L1unblockNetwork_in.dequeue());
+    profileMsgDelay(0, ticksToCycles(L1unblockNetwork_in.dequeue(clockEdge())));
   }
 
   action(o_popIncomingResponseQueue, "o", desc="Pop Incoming Response queue") {
-    profileMsgDelay(1, responseL2Network_in.dequeue());
+    profileMsgDelay(1, ticksToCycles(responseL2Network_in.dequeue(clockEdge())));
   }
 
   action(m_writeDataToCache, "m", desc="Write data from response queue to cache") {
@@ -745,7 +777,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(t_sendWBAck, "t", desc="Send writeback ACK") {
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
-        out_msg.Addr := address;
+        out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:WB_ACK;
         out_msg.Sender := machineID;
         out_msg.Destination.add(in_msg.Requestor);
@@ -758,7 +790,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
-        out_msg.Addr := address;
+        out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:ACK;
         out_msg.Sender := machineID;
         out_msg.Destination.add(in_msg.Requestor);
@@ -780,7 +812,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(nn_addSharer, "\n", desc="Add L1 sharer to list") {
     peek(L1RequestL2Network_in, RequestMsg) {
 			//David add
-	  assert(isPresent(address));
+	  assert(rcc.isPresent_RCC(address)); //Ravali
 	  rcc.addSharer(address, in_msg.Requestor);
 
       assert(is_valid(cache_entry));
@@ -794,8 +826,9 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1unblockNetwork_in, ResponseMsg) {
 
 //David add
-	  assert(isPresent(address));
-	  rcc.addSharer(address, in_msg.Requestor);
+	  assert(rcc.isPresent_RCC(address));
+	  rcc.addSharer(address, in_msg.Sender); /*CHECK*/
+	  //rcc.addSharer(address, in_msg.Requestor);
 
       assert(is_valid(cache_entry));
       addSharer(address, in_msg.Sender, cache_entry);
@@ -806,7 +839,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(kk_removeRequestSharer, "\k", desc="Remove L1 Request sharer from list") {
     peek(L1RequestL2Network_in, RequestMsg) {
 //David add
-	  assert(isPresent(address));
+	  assert(rcc.isPresent_RCC(address)); //Ravali
 	  rcc.removeSharer(address, in_msg.Requestor);
 
 
@@ -819,7 +852,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(ll_clearSharers, "\l", desc="Remove all L1 sharers from list") {
     peek(L1RequestL2Network_in, RequestMsg) {
 //David add
-	  assert(isPresent(address));
+	  assert(rcc.isPresent_RCC(address));
 	  rcc.clearSharers(address);
 
       assert(is_valid(cache_entry));
@@ -830,7 +863,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   action(mm_markExclusive, "\m", desc="set the exclusive owner") {
     peek(L1RequestL2Network_in, RequestMsg) {
 //David add
-	  assert(isPresent(address));
+	  assert(rcc.isPresent_RCC(address)); //Ravali
 	  rcc.clearSharers(address);
 	  rcc.addSharer(address, in_msg.Requestor);
 
@@ -855,7 +888,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   }
 
   action(zn_recycleResponseNetwork, "zn", desc="recycle memory request") {
-    responseL2Network_in.recycle();
+    responseL2Network_in.recycle(clockEdge(), cyclesToTicks(recycle_latency)); /*CHECK*/
   }
 
   action(kd_wakeUpDependents, "kd", desc="wake-up dependents") {
@@ -898,85 +931,87 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 */
+
+ /* *CHECK* -- setRCCstate */
   action(setStateNP,"ssNP", desc="set RCC to NP"){
-	rcc.setRCCstate(address,State:NP);
+	//rcc.setRCCstate(address,State:NP);
   }
 
   action(setStateSS,"ssSS", desc="set RCC to SS"){
-	rcc.setRCCstate(address,State:SS);
+	//rcc.setRCCstate(address,State:SS);
   }
 
   action(setStateM,"ssM", desc="set RCC to M"){
-	rcc.setRCCstate(address,State:M);
+	//rcc.setRCCstate(address,State:M);
   }
 
   action(setStateMT,"ssMT", desc="set RCC to MT"){
-	rcc.setRCCstate(address,State:MT);
+	//rcc.setRCCstate(address,State:MT);
   }
 
   action(setStateM_I,"ssM_I", desc="set RCC to M_I"){
-	rcc.setRCCstate(address,State:M_I);
+	//rcc.setRCCstate(address,State:M_I);
   }
 
   action(setStateMT_I,"ssMT_I", desc="set RCC to MT_I"){
-	rcc.setRCCstate(address,State:MT_I);
+	//rcc.setRCCstate(address,State:MT_I);
   }
 
   action(setStateMCT_I,"ssMCT_I", desc="set RCC to MCT_I"){
-	rcc.setRCCstate(address,State:MCT_I);
+	//rcc.setRCCstate(address,State:MCT_I);
   }
 
   action(setStateI_I,"ssI_I", desc="set RCC to I_I"){
-	rcc.setRCCstate(address,State:I_I);
+	//rcc.setRCCstate(address,State:I_I);
   }
 
   action(setStateS_I,"ssS_I", desc="set RCC to S_I"){
-	rcc.setRCCstate(address,State:S_I);
+	//rcc.setRCCstate(address,State:S_I);
   }
 
   action(setStateISS,"ssISS", desc="set RCC to ISS"){
-	rcc.setRCCstate(address,State:ISS);
+	//rcc.setRCCstate(address,State:ISS);
   }
 
   action(setStateIS,"IS", desc="set RCC to IS"){
-	rcc.setRCCstate(address,State:IS);
+	//rcc.setRCCstate(address,State:IS);
   }
 
   action(setStateIM,"IM", desc="set RCC to IM"){
-	rcc.setRCCstate(address,State:IM);
+	//rcc.setRCCstate(address,State:IM);
   }
 
   action(setStateSS_MB,"ssSS_MB", desc="set RCC to SS_MB"){
-	rcc.setRCCstate(address,State:SS_MB);
+	//rcc.setRCCstate(address,State:SS_MB);
   }
 
   action(setStateMT_MB,"ssMT_MB", desc="set RCC to MT_MB"){
-	rcc.setRCCstate(address,State:MT_MB);
+	//rcc.setRCCstate(address,State:MT_MB);
   }
 
   action(setStateMT_IIB,"ssMT_IIB", desc="set RCC to MT_IIB"){
-	rcc.setRCCstate(address,State:MT_IIB);
+	//rcc.setRCCstate(address,State:MT_IIB);
   }
 
   action(setStateMT_IB,"ssMT_IB", desc="set RCC to MT_IB"){
-	rcc.setRCCstate(address,State:MT_IB);
+	//rcc.setRCCstate(address,State:MT_IB);
   }
 
   action(setStateMT_SB,"ssMT_SB", desc="set RCC to MT_SB"){
-	rcc.setRCCstate(address,State:MT_SB);
+	//rcc.setRCCstate(address,State:MT_SB);
   }
 
   action(a_l2splitRCC, "sRCC_l2", desc="Split RCC into 2 entries, update sharers accordingly") {
-	peek(responseL1Network_in, ResponseMsg) {
-      	assert(isPresent(in_msg.Addr));
-		rcc.splitRCC_l2(in_msg.Addr,in_msg.Requestor);
+	peek(responseL2Network_in, ResponseMsg) { // *CHECK* responseL1Network_in --> responseL2Network_in?
+      	assert(rcc.isPresent_RCC(in_msg.addr)); //Ravali
+		rcc.splitRCC_l2(in_msg.addr,in_msg.Sender); // *CHECK* Requestor --> Sender?
 	}
   }
 
   action(a_l2allocateRCC, "aRCC_l2", desc="allocate RCC entry to L2") {
-	peek(responseL1Network_in, ResponseMsg) {
-		assert(!isPresent(in_msg.Addr)); // make sure entry is not already there
-		rcc.allocate_l2(in_msg.Addr,in_msg.Requestor);
+	peek(responseL2Network_in, ResponseMsg) { //// *CHECK* responseL1Network_in --> responseL2Network_in?
+		assert(!rcc.isPresent_RCC(in_msg.addr)); // make sure entry is not already there  //Ravali
+		//rcc.allocate_l2(in_msg.addr,in_msg.Sender); // *CHECK* allocate_l2; Requestor --> Sender?
 	}
   }
 

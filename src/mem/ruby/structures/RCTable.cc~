@@ -39,7 +39,7 @@ using namespace std;
 int max_granularity = 256;
 int min_granularity = 16;
 
-/*CHECK*: int state --> State state? */
+/*CHANGE: int state --> State state*/
 
 unordered_map<Addr,RCEntryL1> RCTableL1; // L1 table
 unordered_map<Addr,RCEntryL2> RCTableL2; // L2 table
@@ -93,13 +93,13 @@ RCTable::allocate_l2(Addr address, MachineID Requester) //int state=0) /*CHECK* 
   //entry.sharer = sharer;
   RCTableL2.insert(make_pair(address,entry));
 }
-int
+State
 RCTable::getRCCState(Addr address)
 {
   return 0;
 }
 void 
-RCTable::setRCCstate(Addr address,int state)
+RCTable::setRCCstate(Addr address,State state)
 {
 }
 int 
@@ -138,7 +138,7 @@ RCTable::splitRCC_l2(Addr address,MachineID Requester)
 {
 } 
 bool
-RCTable::isPresent_RCC(Addr address)
+RCTable::isPresent(Addr address)
 {
 	return true;
 } 

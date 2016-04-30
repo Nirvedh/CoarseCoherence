@@ -101,7 +101,7 @@ structure(ResponseMsg, desc="...", interface="Message") {
   int AckCount, default="0",  desc="number of acks in this message";
   MessageSizeType MessageSize,  desc="size category of the message";
   int granularity, desc="RC entry - granularity";
-  Addr mask, desc="RC entry - mask";
+  int mask, desc="RC entry - mask";
 
   bool functionalRead(Packet *pkt) {
     // Valid data block is only present in message with following types
