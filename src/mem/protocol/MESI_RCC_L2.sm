@@ -84,6 +84,9 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     MT_IB, AccessPermission:Busy, desc="Blocked for L1_GETS from MT, got unblock, waiting for data";
     MT_SB, AccessPermission:Busy, desc="Blocked for L1_GETS from MT, got data,  waiting for unblock";
 
+    SS_MB_RCC, AccessPermission:Busy, desc="block is being accessed through RCC_GET";
+    MT_MB_RCC, AccessPermission:Busy, desc="block is being accessed through RCC_GET";
+
   }
 
   // EVENTS
@@ -119,6 +122,8 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     MEM_Inv, desc="Invalidation from directory";
 
     RCC_Get, desc=""; //Ravali -- Adding missing event
+    RCC_Get_Miss, desc="RCC get request, but not in L2, must wait for data from Memory Controller";
+
     Nack, desc="";
   }
 
@@ -296,7 +301,12 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
         return Event:L1_PUTX_old;
       }
 	} else if (type == CoherenceRequestType:RCC_GET) { //David add
-		return Event:RCC_Get;
+		if(is_valid(cache_entry)){		
+			return Event:RCC_Get;
+		}
+		else{
+			return Event:RCC_Get_Miss;
+		}
     } else {
       DPRINTF(RubySlicc, "address: %s, Request Type: %s\n", addr, type);
       error("Invalid L1 forwarded request type");
@@ -611,6 +621,31 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 	  out_msg.mask			:= 		rcc.getMask(address);
     }
   }
+
+//David add
+  action(a_sendDataToRCC_GetRequestor, "aRCCG", desc="Send datat to L1 RCC_GET requestor") {
+     
+	if(is_valid(cache_entry)){ // L2 already has data, go ahead and send
+
+	    enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
+	      assert(is_valid(tbe));
+	      assert(is_valid(cache_entry));
+	      out_msg.addr := address;
+	      out_msg.Type := CoherenceResponseType:DATA;
+	      out_msg.Sender := machineID;
+	      out_msg.Destination.add(tbe.L1_GetX_ID);
+	      DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
+	      out_msg.DataBlk := cache_entry.DataBlk;
+	      DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
+		out_msg.addr, out_msg.Destination, out_msg.DataBlk);
+	        out_msg.MessageSize := MessageSizeType:Response_Data;
+		out_msg.granularity 	:= 		rcc.getGranularity(address);
+		out_msg.mask			:= 		rcc.getMask(address);
+	    }
+	}
+	
+		
+}
 
   action(ee_sendDataToGetXRequestor, "ee", desc="Send data from cache to GetX ID") {
     enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
@@ -1001,6 +1036,14 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 	//rcc.setRCCstate(address,State:MT_SB);
   }
 
+ action(setStateMT_MB_RCC,"ssMT_MB_RCC", desc="set RCC to MT_MB_RCC"){
+	//rcc.setRCCstate(address,State:MT_MB_RCC);
+  }
+
+ action(setStateSS_MB_RCC,"ssSS_MB_RCC", desc="set RCC to SS_MB_RCC"){
+	//rcc.setRCCstate(address,State:MT_MB_RCC);
+  }
+
   action(a_l2splitRCC, "sRCC_l2", desc="Split RCC into 2 entries, update sharers accordingly") {
 	peek(responseL2Network_in, ResponseMsg) { // *CHECK* responseL1Network_in --> responseL2Network_in?
       	assert(rcc.isPresent_RCC(in_msg.addr)); //Ravali
@@ -1014,6 +1057,8 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 		//rcc.allocate_l2(in_msg.addr,in_msg.Sender); // *CHECK* allocate_l2; Requestor --> Sender?
 	}
   }
+
+  
 
   //*****************************************************
   // TRANSITIONS
@@ -1034,7 +1079,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     jj_popL1RequestQueue;
   }
 
-  transition({IM, IS, ISS, SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB}, {L2_Replacement, L2_Replacement_clean}) {
+  transition({IM, IS, ISS, SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB,MT_MB_RCC, SS_MB_RCC}, {L2_Replacement, L2_Replacement_clean}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
@@ -1047,7 +1092,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   }
 
 
-  transition({SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB}, {L1_GETS, L1_GET_INSTR, L1_GETX, L1_UPGRADE}) {
+  transition({SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB, MT_MB_RCC, SS_MB_RCC}, {RCC_Get,RCC_Get_Miss,L1_GETS, L1_GET_INSTR, L1_GETX, L1_UPGRADE}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
@@ -1137,11 +1182,11 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 	setStateIS;
   }
 
-  transition({IS, ISS}, L1_GETX) {
+  transition({IS, ISS}, {L1_GETX, RCC_Get}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
-  transition(IM, {L1_GETX, L1_GETS, L1_GET_INSTR}) {
+  transition(IM, {L1_GETX, L1_GETS, L1_GET_INSTR, RCC_Get}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
@@ -1149,6 +1194,15 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   transition(SS, {L1_GETS, L1_GET_INSTR}) {
     ds_sendSharedDataToRequestor;
     nn_addSharer;
+    set_setMRU;
+    uu_profileHit;
+    jj_popL1RequestQueue;
+  }
+
+//David add transition
+  transition(SS, RCC_Get) {
+    ds_sendSharedDataToRequestor;
+    //nn_addSharer; -- already a sharer if used the rcc get
     set_setMRU;
     uu_profileHit;
     jj_popL1RequestQueue;
@@ -1193,6 +1247,48 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     rr_deallocateL2CacheBlock;
 
 	setStateS_I;
+  }
+
+  transition(SS, RCC_Get_Miss, SS_MB_RCC){
+    qq_allocateL2CacheBlock;
+    i_allocateTBE;
+    ss_recordGetSL1ID;
+    a_issueFetchToMemory;
+    uu_profileMiss;
+    jj_popL1RequestQueue;
+
+    setStateSS_MB_RCC;
+}
+
+  transition(SS_MB_RCC,Mem_Data,SS){
+    m_writeDataToCache;
+    e_sendDataToGetSRequestors;
+    s_deallocateTBE;
+    o_popIncomingResponseQueue;
+    kd_wakeUpDependents;
+
+    setStateSS;
+}
+
+  transition(MT, RCC_Get_Miss, MT_MB_RCC){
+    qq_allocateL2CacheBlock;
+    i_allocateTBE;
+    ss_recordGetSL1ID;
+    a_issueFetchToMemory;
+    uu_profileMiss;
+    jj_popL1RequestQueue;
+
+    setStateMT_MB_RCC;
+  }
+
+  transition(MT_MB_RCC,Mem_Data,MT){
+    m_writeDataToCache;
+    e_sendDataToGetSRequestors;
+    s_deallocateTBE;
+    o_popIncomingResponseQueue;
+    kd_wakeUpDependents;
+
+    setStateMT;
   }
 
 
@@ -1256,6 +1352,12 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 	setStateMT_MB;
   }
 
+  transition(MT, RCC_Get){ // David add transition -- same as MT with GETS request, but no state transition
+ 	b_forwardRequestToExclusive;
+	uu_profileMiss;
+	set_setMRU;
+	jj_popL1RequestQueue;
+  }
 
   transition(MT, {L1_GETS, L1_GET_INSTR}, MT_IIB) {
     b_forwardRequestToExclusive;

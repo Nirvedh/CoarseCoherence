@@ -171,7 +171,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
     
     void allocate(Addr, int, int); //int state
     void allocate_l2(Addr, MachineID); //int state=0); // *CHECK* state
-    int getRCCState(Addr);
+    int getRCCL1State(Addr);
     void setRCCstate(Addr, int);//int state
     int getGranularity(Addr);
     Addr getMask(Addr);
@@ -439,7 +439,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
           } else {
             trigger(Event:Data, in_msg.addr, cache_entry, tbe);
           }
-		//DAVID TODO: Figure out with ACK, should be ACK || NACK? -- if all NACK, send special request for RCC_allocate from L2?
+
         } else if (in_msg.Type == CoherenceResponseType:ACK) {
           if ( (getPendingAcks(tbe) - in_msg.AckCount) == 0 ) {
             trigger(Event:Ack_all, in_msg.addr, cache_entry, tbe);
@@ -448,8 +448,6 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
           }
         } else if (in_msg.Type == CoherenceResponseType:WB_ACK) {
           trigger(Event:WB_Ack, in_msg.addr, cache_entry, tbe);
-		//DAVID TODO: RCC allocate also needs logic for how many ack/nacks needed. Probably can consolidate with other, but must think through
-		//David add
 	} else if (in_msg.Type == CoherenceResponseType:RCC_ALLOCATE) { // Ravali - RCC_allocate to RCC_ALLOCATE CoherenceResponseType: RCC_ALLOCATE, event: RCC_allocate
 			 trigger(Event:RCC_allocate, in_msg.addr, cache_entry, tbe);
         } else {
@@ -478,7 +476,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 		//David add
 		bool cache_valid := is_valid(cache_entry);
 		State orig_state := getState(tbe, cache_entry, in_msg.addr);
-		//setState(tbe, cache_entry, in_msg.addr, rcc.getRCCState(in_msg.addr)); //overwrite cache entry to do correct transition *CHECK*
+		//setState(tbe, cache_entry, in_msg.addr, rcc.getRCCL1State(in_msg.addr)); //overwrite cache entry to do correct transition *CHECK*
 
         if (in_msg.Type == CoherenceRequestType:INV) {
 			//David add
@@ -555,7 +553,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 		  //if (is_valid(L1Icache_entry){
           if (is_valid(L1Icache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali.
             // The tag matches for the L1, so the L1 asks the L2 for it. -- also RCC is valid, so it is ok
-			// setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, rcc.getRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+			// setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, rcc.getRCCL1State(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
             trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress,
                     L1Icache_entry, TBEs[in_msg.LineAddress]);
           }
@@ -567,7 +565,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 		        if (is_valid(L1Dcache_entry)&& rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 		          // The block is in the wrong L1, put the request on the queue to the shared L2
 					//David add
-					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, rcc.getRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, rcc.getRCCL1State(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
 		          trigger(Event:L1_Replacement, in_msg.LineAddress,
 		                  L1Dcache_entry, TBEs[in_msg.LineAddress]);
 		        }
@@ -586,7 +584,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 								//have RCC hit, and asked for read, so we must have permission already
 								trigger(Event:RCC_HIT, in_msg.LineAddress, L1Icache_entry, TBEs[in_msg.LineAddress]);
 							}
-							/*if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(rcc.getRCCState(in_msg.LineAddress)))){
+							/*if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(rcc.getRCCL1State(in_msg.LineAddress)))){
 								//have RCC hit, asked for write, and we also have permission
 								trigger(Event:RCC_HIT, in_msg.LineAddress, L1Icache_entry, TBEs[in_msg.LineAddress]);					
 							}*/ /*CHECK*/
@@ -611,7 +609,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 				if (is_valid(L1Dcache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 				    // The tag matches for the L1, so the L1 ask the L2 for it
 					// David add set state
-					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, rcc.getRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, rcc.getRCCL1State(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
 				    trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress,
 				            L1Dcache_entry, TBEs[in_msg.LineAddress]);
 					
@@ -623,7 +621,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 						if(is_valid(L1Icache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 						  // The block is in the wrong L1, put the request on the queue to the shared L2
 						  // David add set state
-						  //setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, rcc.getRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+						  //setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, rcc.getRCCL1State(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
 						  trigger(Event:L1_Replacement, in_msg.LineAddress,
 						          L1Icache_entry, TBEs[in_msg.LineAddress]);
 						}
@@ -640,7 +638,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
 									trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);
 								}
-								/*if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(rcc.getRCCState(in_msg.LineAddress)))){
+								/*if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(rcc.getRCCL1State(in_msg.LineAddress)))){
 								//have RCC hit, asked for write, and we also have permission
 									trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);					
 								}*/ /*CHECK*/
@@ -822,15 +820,16 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
   action(d2_sendDataToL2, "d2", desc="send data to the L2 cache because of M downgrade") {
     enqueue(responseL1Network_out, ResponseMsg, l1_response_latency) {
-      assert(is_valid(cache_entry));
-      out_msg.addr := address;
-      out_msg.Type := CoherenceResponseType:DATA;
-      out_msg.DataBlk := cache_entry.DataBlk;
-      out_msg.Dirty := cache_entry.Dirty;
-      out_msg.Sender := machineID;
-      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
-                          l2_select_low_bit, l2_select_num_bits, intToID(0)));
-      out_msg.MessageSize := MessageSizeType:Response_Data;
+      if(is_valid(cache_entry)){ // check if you have data, if so send to L2. May not have data, but L2 forwarded a getX to you anyways
+	      out_msg.addr := address;
+	      out_msg.Type := CoherenceResponseType:DATA;
+	      out_msg.DataBlk := cache_entry.DataBlk;
+	      out_msg.Dirty := cache_entry.Dirty;
+	      out_msg.Sender := machineID;
+	      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
+		                  l2_select_low_bit, l2_select_num_bits, intToID(0)));
+	      out_msg.MessageSize := MessageSizeType:Response_Data;
+	}
     }
   }
 
@@ -853,15 +852,16 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
   action(d2t_sendDataToL2_fromTBE, "d2t", desc="send data to the L2 cache") {
     enqueue(responseL1Network_out, ResponseMsg, l1_response_latency) {
-      assert(is_valid(tbe));
-      out_msg.addr := address;
-      out_msg.Type := CoherenceResponseType:DATA;
-      out_msg.DataBlk := tbe.DataBlk;
-      out_msg.Dirty := tbe.Dirty;
-      out_msg.Sender := machineID;
-      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
-                          l2_select_low_bit, l2_select_num_bits, intToID(0)));
-      out_msg.MessageSize := MessageSizeType:Response_Data;
+     if(is_valid(tbe)){ //Send data if you have. L2 may have forwarded GETX  even if you don't have
+	      out_msg.addr := address;
+	      out_msg.Type := CoherenceResponseType:DATA;
+	      out_msg.DataBlk := tbe.DataBlk;
+	      out_msg.Dirty := tbe.Dirty;
+	      out_msg.Sender := machineID;
+	      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
+		                  l2_select_low_bit, l2_select_num_bits, intToID(0)));
+	      out_msg.MessageSize := MessageSizeType:Response_Data;
+	}
     }
   }
 
@@ -879,29 +879,31 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
   action(f_sendDataToL2, "f", desc="send data to the L2 cache") {
     enqueue(responseL1Network_out, ResponseMsg, l1_response_latency) {
-      assert(is_valid(cache_entry));
-      out_msg.addr := address;
-      out_msg.Type := CoherenceResponseType:DATA;
-      out_msg.DataBlk := cache_entry.DataBlk;
-      out_msg.Dirty := cache_entry.Dirty;
-      out_msg.Sender := machineID;
-      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
-                          l2_select_low_bit, l2_select_num_bits, intToID(0)));
-      out_msg.MessageSize := MessageSizeType:Writeback_Data;
+      if(is_valid(cache_entry)){
+	      out_msg.addr := address;
+	      out_msg.Type := CoherenceResponseType:DATA;
+	      out_msg.DataBlk := cache_entry.DataBlk;
+	      out_msg.Dirty := cache_entry.Dirty;
+	      out_msg.Sender := machineID;
+	      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
+		                  l2_select_low_bit, l2_select_num_bits, intToID(0)));
+	      out_msg.MessageSize := MessageSizeType:Writeback_Data;
+	}
     }
   }
 
   action(ft_sendDataToL2_fromTBE, "ft", desc="send data to the L2 cache") {
     enqueue(responseL1Network_out, ResponseMsg, l1_response_latency) {
-      assert(is_valid(tbe));
-      out_msg.addr := address;
-      out_msg.Type := CoherenceResponseType:DATA;
-      out_msg.DataBlk := tbe.DataBlk;
-      out_msg.Dirty := tbe.Dirty;
-      out_msg.Sender := machineID;
-      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
-                          l2_select_low_bit, l2_select_num_bits, intToID(0)));
-      out_msg.MessageSize := MessageSizeType:Writeback_Data;
+      if(is_valid(tbe)){
+	      out_msg.addr := address;
+	      out_msg.Type := CoherenceResponseType:DATA;
+	      out_msg.DataBlk := tbe.DataBlk;
+	      out_msg.Dirty := tbe.Dirty;
+	      out_msg.Sender := machineID;
+	      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
+		                  l2_select_low_bit, l2_select_num_bits, intToID(0)));
+	      out_msg.MessageSize := MessageSizeType:Writeback_Data;
+	}
     }
   }
 
@@ -1207,63 +1209,66 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
   }
 
+  action(a_multiplePUTX, "mPUTX", desc = "write back all modified data to the L2") {
+	//David TODO
+}
 
 /* *CHECK* Type 'RCTable' does not have a method setRCCstate, 'setRCCstate_Addr_L1Cache_State' nor '':*/
 
   action(setStateNP,"ssnp", desc="set RCC to NP"){
-	//rcc.setRCCstate(address,State:NP);
+	//rcc.setRCCState(address,State:NP);
   }
 
   action(setStateI,"ssi", desc="set RCC to I"){
-	//rcc.setRCCstate(address,State:I);
+	//rcc.setRCCState(address,State:I);
   }
 
   action(setStateS,"sss", desc="set RCC to S"){
-	//rcc.setRCCstate(address,State:S);
+	//rcc.setRCCState(address,State:S);
   }
 
   action(setStateE,"sse", desc="set RCC to E"){
-	//rcc.setRCCstate(address,State:E);
+	//rcc.setRCCState(address,State:E);
   }
 
   action(setStateM,"ssm", desc="set RCC to M"){
-	//rcc.setRCCstate(address,State:M);
+	//rcc.setRCCState(address,State:M);
   }
 
   action(setStateIS,"ssIS", desc="set RCC to IS"){
-	//rcc.setRCCstate(address,State:IS);
+	//rcc.setRCCState(address,State:IS);
   }
 
   action(setStateIM,"ssIM", desc="set RCC to IM"){
-	//rcc.setRCCstate(address,State:IM);
+	//rcc.setRCCState(address,State:IM);
   }
 
   action(setStateSM,"ssSM", desc="set RCC to SM"){
-	//rcc.setRCCstate(address,State:SM);
+	//rcc.setRCCState(address,State:SM);
   }
 
   action(setStateIS_I,"ssISI", desc="set RCC to IS_I"){
-	//rcc.setRCCstate(address,State:IS_I);
+	//rcc.setRCCState(address,State:IS_I);
   }
 
   action(setStateSINK,"ssSINK", desc="set RCC to SINK_WB_ACK"){
-	//rcc.setRCCstate(address,State:SINK_WB_ACK);
+	//rcc.setRCCState(address,State:SINK_WB_ACK);
   }
 
   action(setStatePF_IS,"ssPF_IS", desc="set RCC to PF_IS"){
-	//rcc.setRCCstate(address,State:PF_IS);
+	//rcc.setRCCState(address,State:PF_IS);
   }
 
   action(setStatePF_IM,"ssPF_IM", desc="set RCC to PF_IM"){
-	//rcc.setRCCstate(address,State:PF_IM);
+	//rcc.setRCCState(address,State:PF_IM);
   }
 
   action(setStatePF_SM,"ssPF_SM", desc="set RCC to PF_SM"){
-	//rcc.setRCCstate(address,State:PF_SM);
+	//rcc.setRCCState(address,State:PF_SM);
   }
 
   action(setStatePF_IS_I,"ssPF_IS_I", desc="set RCC to PF_IS_I"){
-	//rcc.setRCCstate(address,State:PF_IS_I);
+	////rcc.setRCCState(address,State:PF_IS_I);
   }
 
   //*****************************************************
@@ -1459,24 +1464,25 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 //David modify
   transition(E, Fwd_GETX, I) {
     forward_eviction_to_cpu;
-    d_sendDataToRequestor;
+    //d_sendDataToRequestor;
     l_popRequestQueue;
 
 //David add
+	d2_sendDataToL2;
 	a_splitRCC;
-	a_sendAckNack;
+	//a_sendAckNack;
 	//a_sendRCC_allocateToRequestor;
 
   }
 
 //David modify
   transition(E, {Fwd_GETS, Fwd_GET_INSTR}, S) {
-    d_sendDataToRequestor;
+    //d_sendDataToRequestor;
     d2_sendDataToL2;
     l_popRequestQueue;
 
 //David add
-	a_sendAckNack;
+	//a_sendAckNack;
 	setStateS;
   }
 
@@ -1515,23 +1521,25 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 //David-modified
   transition(M, Fwd_GETX, I) {
     forward_eviction_to_cpu;
-    d_sendDataToRequestor;
+    //d_sendDataToRequestor;
+    d2_sendDataToL2;
     l_popRequestQueue;
 
 //David add
-	a_sendAckNack;
+	////a_sendAckNack;
+	d2_sendDataToL2;
 	a_splitRCC;
 	//a_sendRCC_allocateToRequestor;
   }
 
 //David modified
   transition(M, {Fwd_GETS, Fwd_GET_INSTR}, S) {
-    d_sendDataToRequestor;
+    //d_sendDataToRequestor;
     d2_sendDataToL2;
     l_popRequestQueue;
 
 //David add
-	a_sendAckNack;
+	////a_sendAckNack;
 	setStateS;
   }
 
@@ -1540,7 +1548,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
     dt_sendDataToRequestor_fromTBE;
     l_popRequestQueue;
 //David add
-	a_sendAckNack;
+	////a_sendAckNack;
 	setStateSINK;
   }
 
@@ -1551,7 +1559,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
     l_popRequestQueue;
 
 //David add
-	a_sendAckNack;
+	////a_sendAckNack;
 	setStateSINK;
   }
 
