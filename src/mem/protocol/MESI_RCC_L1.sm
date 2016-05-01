@@ -130,7 +130,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
     PF_Store,   desc="exclusive load request from prefetcher";
     
     RCC_allocate, desc="";  // Ravali -- Adding event RCC_allocate
-    RCC_HIT, desc=""; //Ravali -- Adding missing event
+    RCC_HIT, desc=""; //Ravali -- Adding missing event -- Nirvedh mdfy have to use this to actually reap benifit from RCTABLE
     RCC_Inv, desc=""; //Ravali -- Adding missing event
   }
 
@@ -290,11 +290,11 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
 
 
-  Event mandatory_request_type_to_event(RubyRequestType type) {
+  Event mandatory_request_type_to_event(RubyRequestType type) {  //Nirvedh-mdfy
     if (type == RubyRequestType:LD) {
       return Event:Load;
     } else if (type == RubyRequestType:IFETCH) {
-      DPRINTF(RubySlicc, "it does get a ifetch request\n");
+      DPRINTF(RubySlicc, "it does get a ifetch request\n");    
       return Event:Ifetch;
     } else if ((type == RubyRequestType:ST) || (type == RubyRequestType:ATOMIC)) {
       return Event:Store;
@@ -1487,12 +1487,12 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(setStateIS,"ssIS", desc="set RCC to IS"){
-	//assert(rcc.isPresent_RCC(address)); //rm-Nirvedh decided to remove this because allocates are only done through response from L2
+  assert(rcc.isPresent_RCC(address)); 
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IS));
   }
 
   action(setStateIM,"ssIM", desc="set RCC to IM"){
-	//assert(rcc.isPresent_RCC(address)); // rm-Nirvedh decided to remove this because allocates are only done through response from L2
+	assert(rcc.isPresent_RCC(address)); 
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IM));
   }
 
@@ -1564,26 +1564,26 @@ State DavidgetRCCState(Addr addr){
     oo_allocateL1DCacheBlock;
 
 //David add
-	a_allocateRCC;
+	//a_allocateRCC;  //Nirvedh rm 
 
     i_allocateTBE;
     a_issueGETS;
     uu_profileDataMiss;
     po_observeMiss;
     k_popMandatoryQueue;
-	setStateIS;
+	//setStateIS; //Nirvedh rm 
   }
 
   transition({NP,I}, PF_Load, PF_IS) {
     oo_allocateL1DCacheBlock;
 
 //David add
-	a_allocateRCC;
+	// a_allocateRCC; // Nirvedh rm
 
     i_allocateTBE;
     pa_issuePfGETS;
     pq_popPrefetchQueue;
-	setStatePF_IS;
+    //setStatePF_IS;  // nirvedh rm
   }
 
   transition(PF_IS, Load, IS) {
@@ -1597,14 +1597,14 @@ State DavidgetRCCState(Addr addr){
     uu_profileDataMiss;
     ppm_observePfMiss;
     k_popMandatoryQueue;
-	setStateIS_I;
+	  //setStateIS_I;
   }
 
   transition({NP,I}, Ifetch, IS) { //Nirvedh Track 1
     pp_allocateL1ICacheBlock;
 
 //David add
-	//a_allocateRCC; // rm-Nirvedh decided to remove this because allocates are only done through response from L2 and
+	//a_allocateRCC; // Nirvedh rm decided to remove this because allocates are only done through response from L2 and
                   // This is request to L1 from the core 
 
     i_allocateTBE;
@@ -1612,7 +1612,7 @@ State DavidgetRCCState(Addr addr){
     uu_profileInstMiss;
     po_observeMiss;
     k_popMandatoryQueue;
-	setStateIS;
+	  //setStateIS;
   }
 
   transition({NP,I}, PF_Ifetch, PF_IS) {
@@ -1640,14 +1640,14 @@ State DavidgetRCCState(Addr addr){
     oo_allocateL1DCacheBlock;
 
 //David add
-	a_allocateRCC;
+	// a_allocateRCC;  // Nirvedh rm
 
     i_allocateTBE;
     b_issueGETX;
     uu_profileDataMiss;
     po_observeMiss;
     k_popMandatoryQueue;
-	setStateIM;
+   	setStateIM;  //Nirvedh rm
   }
 
   transition({NP,I}, PF_Store, PF_IM) {
@@ -1883,7 +1883,7 @@ State DavidgetRCCState(Addr addr){
 /*CHECK* - Duplicate transition: IS|Data_all_Acks */
   //transition(IS, RCC_allocate, S) {
  /* transition(IS, Data_all_Acks, S) {
-    u_writeDataToL1Cache;
+    u_writeDataToL1Cache;  //Nirvedh track 5
     hx_load_hit;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
@@ -1935,7 +1935,7 @@ State DavidgetRCCState(Addr addr){
     u_writeDataToL1Cache;
 
 	//David add
-	//a_allocateRCC;
+	a_allocateRCC; //Nirvedh Mdfy
 
     j_sendUnblock;
     hx_load_hit;
@@ -1953,7 +1953,7 @@ State DavidgetRCCState(Addr addr){
     u_writeDataToL1Cache;
 
 	//David add
-	//a_allocateRCC;
+	a_allocateRCC; //Nirvedh Mdfy
 
     j_sendUnblock;
     s_deallocateTBE;
@@ -2066,7 +2066,7 @@ State DavidgetRCCState(Addr addr){
     u_writeDataToL1Cache;
 
 	//David add
-	//a_allocateRCC;
+	a_allocateRCC;  //Nirvedh mdfy (since I removed Davids allocate for  stores)
 
     hhx_store_hit;
     jj_sendExclusiveUnblock;
@@ -2083,7 +2083,7 @@ State DavidgetRCCState(Addr addr){
     u_writeDataToL1Cache;
 
 	//David add
-	//a_allocateRCC;
+	a_allocateRCC;  //Nirvedh mdfy (since I removed Davids allocate for  input req)
 
     jj_sendExclusiveUnblock;
     s_deallocateTBE;
