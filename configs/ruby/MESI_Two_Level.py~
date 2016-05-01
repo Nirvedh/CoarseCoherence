@@ -127,7 +127,7 @@ def create_system(options, full_system, system, dma_ports, ruby_system):
         #l1_cntrl.requestToRCCl1 = RubyWireBuffer()
 	rctable = Rctable()
         l1_cntrl.rcc = rctable
-        l1_cntrl.rcc.isL1Cache = True;
+        l1_cntrl.rcc.isL1Cache = False;
 
 
 

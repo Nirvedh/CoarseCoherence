@@ -104,7 +104,7 @@ RCTable::getRCCL1State(Addr address)
     {
       int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
       assert(count <= 1);
-      if (count==1)
+      if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
 	return ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).state;
       gIter=gIter>>gstep;
     }
@@ -119,7 +119,7 @@ RCTable::getRCCL2State(Addr address)
     {
       int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
       assert(count <= 1);
-      if (count==1)
+      if (count==1 &&  ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
 	return ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).state;
       gIter=gIter>>gstep;
     }
@@ -133,7 +133,7 @@ RCTable::setRCCL1State(Addr address,string state)
     {
       int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
       assert(count <= 1);
-      if (count==1)
+      if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
       {
 	((RCTableL1.find(maskLowOrderBits(address,gIter+ b_sz)))->second).state=state;
 	return;
@@ -149,7 +149,7 @@ RCTable::setRCCL2State(Addr address,string state)
   {
     int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
     assert(count <= 1);
-    if (count==1)
+    if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     {
       ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).state=state;
       return;
@@ -167,7 +167,7 @@ RCTable::getGranularity(Addr address)
       {
 	int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
 	assert(count <= 1);
-	if (count==1)
+	if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
 	  return ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity;
 	gIter=gIter>>gstep;
        }
@@ -178,7 +178,7 @@ RCTable::getGranularity(Addr address)
 	{
 	  int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
 	  assert(count <= 1);
-	  if (count==1)
+	  if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
 	    return ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).granularity;
 	  gIter=gIter>>gstep;
 	}
@@ -197,7 +197,7 @@ RCTable::getMask(Addr address)
       {
 	int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
 	assert(count <= 1);
-	if (count==1)
+	if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter )
 	  return ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->first);
 	gIter=gIter>>gstep;
        }
@@ -208,7 +208,7 @@ RCTable::getMask(Addr address)
 	{
 	  int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
 	  assert(count <= 1);
-	  if (count==1)
+	  if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
 	    return ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->first);
 	  gIter=gIter>>gstep;
 	}
@@ -225,7 +225,7 @@ RCTable::getSharers(Addr address)
   {
     int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
     assert(count <= 1);
-    if (count==1)
+    if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     return ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).sharer;
       gIter=gIter>>gstep;
    }
@@ -242,7 +242,7 @@ RCTable::addSharer(Addr address,MachineID Requester)
   {
     int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
     assert(count <= 1);
-    if (count==1)
+    if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     {
     ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).sharer.add(Requester);
     return;
@@ -261,7 +261,7 @@ RCTable::removeSharer(Addr address,MachineID Requester)
   {
     int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
     assert(count <= 1);
-    if (count==1)
+    if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     {
       ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).sharer.remove(Requester);
       return;
@@ -279,7 +279,7 @@ RCTable::clearSharers(Addr address)
   {
     int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
     assert(count <= 1);
-    if (count==1)
+    if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     {
       ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).sharer.clear();
       return;
@@ -298,7 +298,7 @@ RCTable::split(Addr address)
   {
     int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
     assert(count <= 1);
-    if (count==1)
+    if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     {
       Addr curr_addr=(RCTableL1.find(maskLowOrderBits(address,gIter+ b_sz)))->first;
       if(gIter==min_granularity)
@@ -334,7 +334,7 @@ RCTable::splitRCC_l2(Addr address,MachineID Requester)
   {
     int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
     assert(count <= 1);
-    if (count==1)
+    if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     {
       Addr curr_addr=(RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->first;
       if(gIter==min_granularity)
@@ -389,7 +389,7 @@ RCTable::isPresent_RCC(Addr address)
       {
 	int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
 	assert(count <= 1);
-	if (count==1)
+	if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
 	  return true;
 	gIter=gIter>>gstep;
        }
@@ -400,7 +400,7 @@ RCTable::isPresent_RCC(Addr address)
 	{
 	  int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
 	  assert(count <= 1);
-	  if (count==1)
+	  if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
 	    return true;
 	  gIter=gIter>>gstep;
 	}
