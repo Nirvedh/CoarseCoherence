@@ -172,7 +172,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
     void allocate(Addr, int, int); //int state
     void allocate_l2(Addr, MachineID); //int state=0); // *CHECK* state
     int getRCCL1State(Addr);
-    void setRCCstate(Addr, int);//int state
+    void setRCCL1State(Addr, int);//int state
     int getGranularity(Addr);
     Addr getMask(Addr);
     NetDest getSharers(Addr);
@@ -288,6 +288,8 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
     }
   }
 
+
+
   Event mandatory_request_type_to_event(RubyRequestType type) {
     if (type == RubyRequestType:LD) {
       return Event:Load;
@@ -315,6 +317,46 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
   int getPendingAcks(TBE tbe) {
     return tbe.pendingAcks;
+  }
+
+State DavidgetRCCState(Addr addr){
+	std::string str := (rcc.getRCCL1State(addr)); 
+ if (str == "NP") {
+        return State:NP;
+    } else if (str == "I") {
+        return State:I;
+    } else if (str == "S") {
+        return State:S;
+    } else if (str == "E") {
+        return State:E;
+    } else if (str == "M") {
+        return State:M;
+    } else if (str == "IS") {
+        return State:IS;
+    } else if (str == "IM") {
+        return State:IM;
+    } else if (str == "SM") {
+        return State:SM;
+    } else if (str == "IS_I") {
+        return State:IS_I;
+    } else if (str == "M_I") {
+        return State:M_I;
+    } else if (str == "SINK_WB_ACK") {
+        return State:SINK_WB_ACK;
+    } else if (str == "PF_IS") {
+        return State:PF_IS;
+    } else if (str == "PF_IM") {
+        return State:PF_IM;
+    } else if (str == "PF_SM") {
+        return State:PF_SM;
+    } else if (str == "PF_IS_I") {
+        return State:PF_IS_I;
+    } else {
+       return State:NP;
+    }
+
+	//return string_to_L1Cache_State("NP");
+	//return State:NP;
   }
 
   out_port(requestL1Network_out, RequestMsg, requestFromL1Cache);
@@ -476,7 +518,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 		//David add
 		bool cache_valid := is_valid(cache_entry);
 		State orig_state := getState(tbe, cache_entry, in_msg.addr);
-		//setState(tbe, cache_entry, in_msg.addr, rcc.getRCCL1State(in_msg.addr)); //overwrite cache entry to do correct transition *CHECK*
+		//setState(tbe, cache_entry, in_msg.addr, DavidgetRCCState(in_msg.addr)); //overwrite cache entry to do correct transition *CHECK*
 
         if (in_msg.Type == CoherenceRequestType:INV) {
 			//David add
@@ -553,7 +595,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 		  //if (is_valid(L1Icache_entry){
           if (is_valid(L1Icache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali.
             // The tag matches for the L1, so the L1 asks the L2 for it. -- also RCC is valid, so it is ok
-			// setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, rcc.getRCCL1State(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+			// setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, DavidgetRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
             trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress,
                     L1Icache_entry, TBEs[in_msg.LineAddress]);
           }
@@ -565,7 +607,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 		        if (is_valid(L1Dcache_entry)&& rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 		          // The block is in the wrong L1, put the request on the queue to the shared L2
 					//David add
-					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, rcc.getRCCL1State(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, DavidgetRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
 		          trigger(Event:L1_Replacement, in_msg.LineAddress,
 		                  L1Dcache_entry, TBEs[in_msg.LineAddress]);
 		        }
@@ -584,7 +626,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 								//have RCC hit, and asked for read, so we must have permission already
 								trigger(Event:RCC_HIT, in_msg.LineAddress, L1Icache_entry, TBEs[in_msg.LineAddress]);
 							}
-							/*if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(rcc.getRCCL1State(in_msg.LineAddress)))){
+							/*if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(DavidgetRCCState(in_msg.LineAddress)))){
 								//have RCC hit, asked for write, and we also have permission
 								trigger(Event:RCC_HIT, in_msg.LineAddress, L1Icache_entry, TBEs[in_msg.LineAddress]);					
 							}*/ /*CHECK*/
@@ -609,7 +651,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 				if (is_valid(L1Dcache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 				    // The tag matches for the L1, so the L1 ask the L2 for it
 					// David add set state
-					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, rcc.getRCCL1State(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, DavidgetRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
 				    trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress,
 				            L1Dcache_entry, TBEs[in_msg.LineAddress]);
 					
@@ -621,7 +663,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 						if(is_valid(L1Icache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 						  // The block is in the wrong L1, put the request on the queue to the shared L2
 						  // David add set state
-						  //setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, rcc.getRCCL1State(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+						  setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, DavidgetRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
 						  trigger(Event:L1_Replacement, in_msg.LineAddress,
 						          L1Icache_entry, TBEs[in_msg.LineAddress]);
 						}
@@ -638,7 +680,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
 									trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);
 								}
-								/*if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(rcc.getRCCL1State(in_msg.LineAddress)))){
+								/*if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(DavidgetRCCState(in_msg.LineAddress)))){
 								//have RCC hit, asked for write, and we also have permission
 									trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);					
 								}*/ /*CHECK*/
@@ -661,7 +703,26 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
   //Nirvedh judgement call there were three more close brackets in base protocol so added those nut i needed 4 to get this going
  
 
- 
+ void DavidissuePUTX(Addr address,Entry cache_entry){
+	if(is_valid(cache_entry) && cache_entry.Dirty){ // cache entry is in the block you're losing permission to, and it's now dirty. May the writebacks begin...
+	 enqueue(requestL1Network_out, RequestMsg, l1_response_latency) {
+
+	      out_msg.addr := address;
+	      out_msg.Type := CoherenceRequestType:PUTX;
+	      out_msg.DataBlk := cache_entry.DataBlk;
+	      out_msg.Dirty := cache_entry.Dirty;
+	      out_msg.Requestor:= machineID;
+	      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
+		                  l2_select_low_bit, l2_select_num_bits, intToID(0)));
+	      if (cache_entry.Dirty) {
+		out_msg.MessageSize := MessageSizeType:Writeback_Data;
+	      } else {
+		out_msg.MessageSize := MessageSizeType:Writeback_Control;
+	      }
+	    }
+	}
+
+}
 
   void enqueuePrefetch(Addr address, RubyRequestType type) {
       enqueue(optionalQueue_out, RubyRequest, 1) {
@@ -1211,65 +1272,221 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
   action(a_multiplePUTX, "mPUTX", desc = "write back all modified data to the L2") {
 	//David TODO
+	int gran := rcc.getGranularity(address);
+	Addr mask := rcc.getMask(address);
+
+	//stupid SM files don't support loops. I apologize for the hacky code. Sorry Professor Hill  ='( 
+	if(gran==64){
+		DavidissuePUTX(mask,getCacheEntry(mask));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
+		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
+		DavidissuePUTX(makeNextStrideAddress(mask,3),getCacheEntry(makeNextStrideAddress(mask,3)));
+		DavidissuePUTX(makeNextStrideAddress(mask,4),getCacheEntry(makeNextStrideAddress(mask,4)));
+		DavidissuePUTX(makeNextStrideAddress(mask,5),getCacheEntry(makeNextStrideAddress(mask,5)));
+		DavidissuePUTX(makeNextStrideAddress(mask,6),getCacheEntry(makeNextStrideAddress(mask,6)));
+		DavidissuePUTX(makeNextStrideAddress(mask,7),getCacheEntry(makeNextStrideAddress(mask,7)));
+		DavidissuePUTX(makeNextStrideAddress(mask,8),getCacheEntry(makeNextStrideAddress(mask,8)));
+		DavidissuePUTX(makeNextStrideAddress(mask,9),getCacheEntry(makeNextStrideAddress(mask,9)));
+		DavidissuePUTX(makeNextStrideAddress(mask,10),getCacheEntry(makeNextStrideAddress(mask,10)));
+		DavidissuePUTX(makeNextStrideAddress(mask,11),getCacheEntry(makeNextStrideAddress(mask,11)));
+		DavidissuePUTX(makeNextStrideAddress(mask,12),getCacheEntry(makeNextStrideAddress(mask,12)));
+		DavidissuePUTX(makeNextStrideAddress(mask,13),getCacheEntry(makeNextStrideAddress(mask,13)));
+		DavidissuePUTX(makeNextStrideAddress(mask,14),getCacheEntry(makeNextStrideAddress(mask,14)));
+		DavidissuePUTX(makeNextStrideAddress(mask,15),getCacheEntry(makeNextStrideAddress(mask,15)));
+		DavidissuePUTX(makeNextStrideAddress(mask,16),getCacheEntry(makeNextStrideAddress(mask,16)));
+		DavidissuePUTX(makeNextStrideAddress(mask,17),getCacheEntry(makeNextStrideAddress(mask,17)));
+		DavidissuePUTX(makeNextStrideAddress(mask,18),getCacheEntry(makeNextStrideAddress(mask,18)));
+		DavidissuePUTX(makeNextStrideAddress(mask,19),getCacheEntry(makeNextStrideAddress(mask,19)));
+		DavidissuePUTX(makeNextStrideAddress(mask,20),getCacheEntry(makeNextStrideAddress(mask,20)));
+		DavidissuePUTX(makeNextStrideAddress(mask,21),getCacheEntry(makeNextStrideAddress(mask,21)));
+		DavidissuePUTX(makeNextStrideAddress(mask,22),getCacheEntry(makeNextStrideAddress(mask,22)));
+		DavidissuePUTX(makeNextStrideAddress(mask,23),getCacheEntry(makeNextStrideAddress(mask,23)));
+		DavidissuePUTX(makeNextStrideAddress(mask,24),getCacheEntry(makeNextStrideAddress(mask,24)));
+		DavidissuePUTX(makeNextStrideAddress(mask,25),getCacheEntry(makeNextStrideAddress(mask,25)));
+		DavidissuePUTX(makeNextStrideAddress(mask,26),getCacheEntry(makeNextStrideAddress(mask,26)));
+		DavidissuePUTX(makeNextStrideAddress(mask,27),getCacheEntry(makeNextStrideAddress(mask,27)));
+		DavidissuePUTX(makeNextStrideAddress(mask,28),getCacheEntry(makeNextStrideAddress(mask,28)));
+		DavidissuePUTX(makeNextStrideAddress(mask,29),getCacheEntry(makeNextStrideAddress(mask,29)));
+		DavidissuePUTX(makeNextStrideAddress(mask,30),getCacheEntry(makeNextStrideAddress(mask,30)));
+		DavidissuePUTX(makeNextStrideAddress(mask,31),getCacheEntry(makeNextStrideAddress(mask,31)));
+		DavidissuePUTX(makeNextStrideAddress(mask,32),getCacheEntry(makeNextStrideAddress(mask,32)));
+		DavidissuePUTX(makeNextStrideAddress(mask,33),getCacheEntry(makeNextStrideAddress(mask,33)));
+		DavidissuePUTX(makeNextStrideAddress(mask,34),getCacheEntry(makeNextStrideAddress(mask,34)));
+		DavidissuePUTX(makeNextStrideAddress(mask,35),getCacheEntry(makeNextStrideAddress(mask,35)));
+		DavidissuePUTX(makeNextStrideAddress(mask,36),getCacheEntry(makeNextStrideAddress(mask,36)));
+		DavidissuePUTX(makeNextStrideAddress(mask,37),getCacheEntry(makeNextStrideAddress(mask,37)));
+		DavidissuePUTX(makeNextStrideAddress(mask,38),getCacheEntry(makeNextStrideAddress(mask,38)));
+		DavidissuePUTX(makeNextStrideAddress(mask,39),getCacheEntry(makeNextStrideAddress(mask,39)));
+		DavidissuePUTX(makeNextStrideAddress(mask,40),getCacheEntry(makeNextStrideAddress(mask,40)));
+		DavidissuePUTX(makeNextStrideAddress(mask,41),getCacheEntry(makeNextStrideAddress(mask,41)));
+		DavidissuePUTX(makeNextStrideAddress(mask,42),getCacheEntry(makeNextStrideAddress(mask,42)));
+		DavidissuePUTX(makeNextStrideAddress(mask,43),getCacheEntry(makeNextStrideAddress(mask,43)));
+		DavidissuePUTX(makeNextStrideAddress(mask,44),getCacheEntry(makeNextStrideAddress(mask,44)));
+		DavidissuePUTX(makeNextStrideAddress(mask,45),getCacheEntry(makeNextStrideAddress(mask,45)));
+		DavidissuePUTX(makeNextStrideAddress(mask,46),getCacheEntry(makeNextStrideAddress(mask,46)));
+		DavidissuePUTX(makeNextStrideAddress(mask,47),getCacheEntry(makeNextStrideAddress(mask,47)));
+		DavidissuePUTX(makeNextStrideAddress(mask,48),getCacheEntry(makeNextStrideAddress(mask,48)));
+		DavidissuePUTX(makeNextStrideAddress(mask,49),getCacheEntry(makeNextStrideAddress(mask,49)));
+		DavidissuePUTX(makeNextStrideAddress(mask,50),getCacheEntry(makeNextStrideAddress(mask,50)));
+		DavidissuePUTX(makeNextStrideAddress(mask,51),getCacheEntry(makeNextStrideAddress(mask,51)));
+		DavidissuePUTX(makeNextStrideAddress(mask,52),getCacheEntry(makeNextStrideAddress(mask,52)));
+		DavidissuePUTX(makeNextStrideAddress(mask,53),getCacheEntry(makeNextStrideAddress(mask,53)));
+		DavidissuePUTX(makeNextStrideAddress(mask,54),getCacheEntry(makeNextStrideAddress(mask,54)));
+		DavidissuePUTX(makeNextStrideAddress(mask,55),getCacheEntry(makeNextStrideAddress(mask,55)));
+		DavidissuePUTX(makeNextStrideAddress(mask,56),getCacheEntry(makeNextStrideAddress(mask,56)));
+		DavidissuePUTX(makeNextStrideAddress(mask,57),getCacheEntry(makeNextStrideAddress(mask,57)));
+		DavidissuePUTX(makeNextStrideAddress(mask,58),getCacheEntry(makeNextStrideAddress(mask,58)));
+		DavidissuePUTX(makeNextStrideAddress(mask,59),getCacheEntry(makeNextStrideAddress(mask,59)));
+		DavidissuePUTX(makeNextStrideAddress(mask,60),getCacheEntry(makeNextStrideAddress(mask,60)));
+		DavidissuePUTX(makeNextStrideAddress(mask,61),getCacheEntry(makeNextStrideAddress(mask,61)));
+		DavidissuePUTX(makeNextStrideAddress(mask,62),getCacheEntry(makeNextStrideAddress(mask,62)));
+		DavidissuePUTX(makeNextStrideAddress(mask,63),getCacheEntry(makeNextStrideAddress(mask,63)));
+
+	}
+
+	if(gran==32){
+		DavidissuePUTX(mask,getCacheEntry(mask));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
+		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
+		DavidissuePUTX(makeNextStrideAddress(mask,3),getCacheEntry(makeNextStrideAddress(mask,3)));
+		DavidissuePUTX(makeNextStrideAddress(mask,4),getCacheEntry(makeNextStrideAddress(mask,4)));
+		DavidissuePUTX(makeNextStrideAddress(mask,5),getCacheEntry(makeNextStrideAddress(mask,5)));
+		DavidissuePUTX(makeNextStrideAddress(mask,6),getCacheEntry(makeNextStrideAddress(mask,6)));
+		DavidissuePUTX(makeNextStrideAddress(mask,7),getCacheEntry(makeNextStrideAddress(mask,7)));
+		DavidissuePUTX(makeNextStrideAddress(mask,8),getCacheEntry(makeNextStrideAddress(mask,8)));
+		DavidissuePUTX(makeNextStrideAddress(mask,9),getCacheEntry(makeNextStrideAddress(mask,9)));
+		DavidissuePUTX(makeNextStrideAddress(mask,10),getCacheEntry(makeNextStrideAddress(mask,10)));
+		DavidissuePUTX(makeNextStrideAddress(mask,11),getCacheEntry(makeNextStrideAddress(mask,11)));
+		DavidissuePUTX(makeNextStrideAddress(mask,12),getCacheEntry(makeNextStrideAddress(mask,12)));
+		DavidissuePUTX(makeNextStrideAddress(mask,13),getCacheEntry(makeNextStrideAddress(mask,13)));
+		DavidissuePUTX(makeNextStrideAddress(mask,14),getCacheEntry(makeNextStrideAddress(mask,14)));
+		DavidissuePUTX(makeNextStrideAddress(mask,15),getCacheEntry(makeNextStrideAddress(mask,15)));
+		DavidissuePUTX(makeNextStrideAddress(mask,16),getCacheEntry(makeNextStrideAddress(mask,16)));
+		DavidissuePUTX(makeNextStrideAddress(mask,17),getCacheEntry(makeNextStrideAddress(mask,17)));
+		DavidissuePUTX(makeNextStrideAddress(mask,18),getCacheEntry(makeNextStrideAddress(mask,18)));
+		DavidissuePUTX(makeNextStrideAddress(mask,19),getCacheEntry(makeNextStrideAddress(mask,19)));
+		DavidissuePUTX(makeNextStrideAddress(mask,20),getCacheEntry(makeNextStrideAddress(mask,20)));
+		DavidissuePUTX(makeNextStrideAddress(mask,21),getCacheEntry(makeNextStrideAddress(mask,21)));
+		DavidissuePUTX(makeNextStrideAddress(mask,22),getCacheEntry(makeNextStrideAddress(mask,22)));
+		DavidissuePUTX(makeNextStrideAddress(mask,23),getCacheEntry(makeNextStrideAddress(mask,23)));
+		DavidissuePUTX(makeNextStrideAddress(mask,24),getCacheEntry(makeNextStrideAddress(mask,24)));
+		DavidissuePUTX(makeNextStrideAddress(mask,25),getCacheEntry(makeNextStrideAddress(mask,25)));
+		DavidissuePUTX(makeNextStrideAddress(mask,26),getCacheEntry(makeNextStrideAddress(mask,26)));
+		DavidissuePUTX(makeNextStrideAddress(mask,27),getCacheEntry(makeNextStrideAddress(mask,27)));
+		DavidissuePUTX(makeNextStrideAddress(mask,28),getCacheEntry(makeNextStrideAddress(mask,28)));
+		DavidissuePUTX(makeNextStrideAddress(mask,29),getCacheEntry(makeNextStrideAddress(mask,29)));
+		DavidissuePUTX(makeNextStrideAddress(mask,30),getCacheEntry(makeNextStrideAddress(mask,30)));
+		DavidissuePUTX(makeNextStrideAddress(mask,31),getCacheEntry(makeNextStrideAddress(mask,31)));
+
+	}
+	if(gran==16){
+		DavidissuePUTX(mask,getCacheEntry(mask));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
+		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
+		DavidissuePUTX(makeNextStrideAddress(mask,3),getCacheEntry(makeNextStrideAddress(mask,3)));
+		DavidissuePUTX(makeNextStrideAddress(mask,4),getCacheEntry(makeNextStrideAddress(mask,4)));
+		DavidissuePUTX(makeNextStrideAddress(mask,5),getCacheEntry(makeNextStrideAddress(mask,5)));
+		DavidissuePUTX(makeNextStrideAddress(mask,6),getCacheEntry(makeNextStrideAddress(mask,6)));
+		DavidissuePUTX(makeNextStrideAddress(mask,7),getCacheEntry(makeNextStrideAddress(mask,7)));
+		DavidissuePUTX(makeNextStrideAddress(mask,8),getCacheEntry(makeNextStrideAddress(mask,8)));
+		DavidissuePUTX(makeNextStrideAddress(mask,9),getCacheEntry(makeNextStrideAddress(mask,9)));
+		DavidissuePUTX(makeNextStrideAddress(mask,10),getCacheEntry(makeNextStrideAddress(mask,10)));
+		DavidissuePUTX(makeNextStrideAddress(mask,11),getCacheEntry(makeNextStrideAddress(mask,11)));
+		DavidissuePUTX(makeNextStrideAddress(mask,12),getCacheEntry(makeNextStrideAddress(mask,12)));
+		DavidissuePUTX(makeNextStrideAddress(mask,13),getCacheEntry(makeNextStrideAddress(mask,13)));
+		DavidissuePUTX(makeNextStrideAddress(mask,14),getCacheEntry(makeNextStrideAddress(mask,14)));
+		DavidissuePUTX(makeNextStrideAddress(mask,15),getCacheEntry(makeNextStrideAddress(mask,15)));
+	}
+
+	if(gran==8){
+		DavidissuePUTX(mask,getCacheEntry(mask));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
+		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
+		DavidissuePUTX(makeNextStrideAddress(mask,3),getCacheEntry(makeNextStrideAddress(mask,3)));
+		DavidissuePUTX(makeNextStrideAddress(mask,4),getCacheEntry(makeNextStrideAddress(mask,4)));
+		DavidissuePUTX(makeNextStrideAddress(mask,5),getCacheEntry(makeNextStrideAddress(mask,5)));
+		DavidissuePUTX(makeNextStrideAddress(mask,6),getCacheEntry(makeNextStrideAddress(mask,6)));
+		DavidissuePUTX(makeNextStrideAddress(mask,7),getCacheEntry(makeNextStrideAddress(mask,7)));
+	}
+
+	if(gran==4){
+		DavidissuePUTX(mask,getCacheEntry(mask));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
+		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
+		DavidissuePUTX(makeNextStrideAddress(mask,3),getCacheEntry(makeNextStrideAddress(mask,3)));
+	}
+
+	if(gran==2){
+		DavidissuePUTX(mask,getCacheEntry(mask));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
+	}
+
+	else{
+		DavidissuePUTX(mask,getCacheEntry(mask));
+	}
+
+
 }
 
-/* *CHECK* Type 'RCTable' does not have a method setRCCstate, 'setRCCstate_Addr_L1Cache_State' nor '':*/
+/* *CHECK* Type 'RCTable' does not have a method setRCCL1State, 'setRCCL1State_Addr_L1Cache_State' nor '':*/
 
   action(setStateNP,"ssnp", desc="set RCC to NP"){
-	//rcc.setRCCState(address,State:NP);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:NP));
   }
 
   action(setStateI,"ssi", desc="set RCC to I"){
-	//rcc.setRCCState(address,State:I);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:I));
   }
 
   action(setStateS,"sss", desc="set RCC to S"){
-	//rcc.setRCCState(address,State:S);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:S));
   }
 
   action(setStateE,"sse", desc="set RCC to E"){
-	//rcc.setRCCState(address,State:E);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:E));
   }
 
   action(setStateM,"ssm", desc="set RCC to M"){
-	//rcc.setRCCState(address,State:M);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:M));
   }
 
   action(setStateIS,"ssIS", desc="set RCC to IS"){
-	//rcc.setRCCState(address,State:IS);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IS));
   }
 
   action(setStateIM,"ssIM", desc="set RCC to IM"){
-	//rcc.setRCCState(address,State:IM);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IM));
   }
 
   action(setStateSM,"ssSM", desc="set RCC to SM"){
-	//rcc.setRCCState(address,State:SM);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:SM));
   }
 
   action(setStateIS_I,"ssISI", desc="set RCC to IS_I"){
-	//rcc.setRCCState(address,State:IS_I);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IS_I));
   }
 
   action(setStateSINK,"ssSINK", desc="set RCC to SINK_WB_ACK"){
-	//rcc.setRCCState(address,State:SINK_WB_ACK);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:SINK_WB_ACK));
   }
 
   action(setStatePF_IS,"ssPF_IS", desc="set RCC to PF_IS"){
-	//rcc.setRCCState(address,State:PF_IS);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:PF_IS));
   }
 
   action(setStatePF_IM,"ssPF_IM", desc="set RCC to PF_IM"){
-	//rcc.setRCCState(address,State:PF_IM);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:PF_IM));
   }
 
   action(setStatePF_SM,"ssPF_SM", desc="set RCC to PF_SM"){
-	//rcc.setRCCState(address,State:PF_SM);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:PF_SM));
   }
 
   action(setStatePF_IS_I,"ssPF_IS_I", desc="set RCC to PF_IS_I"){
-	////rcc.setRCCState(address,State:PF_IS_I);
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:PF_IS_I));
   }
+
+
 
   //*****************************************************
   // TRANSITIONS

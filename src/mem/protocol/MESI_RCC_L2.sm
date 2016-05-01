@@ -233,6 +233,52 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
+State DavidgetRCCState(Addr addr){
+	std::string str := (rcc.getRCCL2State(addr)); 
+ if (str == "NP") {
+        return State:NP;
+    } else if (str == "SS") {
+        return State:SS;
+    } else if (str == "M") {
+        return State:M;
+    } else if (str == "MT") {
+        return State:MT;
+    } else if (str == "M_I") {
+        return State:M_I;
+    } else if (str == "MT_I") {
+        return State:MT_I;
+    } else if (str == "MCT_I") {
+        return State:MCT_I;
+    } else if (str == "I_I") {
+        return State:I_I;
+    } else if (str == "S_I") {
+        return State:S_I;
+    } else if (str == "ISS") {
+        return State:ISS;
+    } else if (str == "IS") {
+        return State:IS;
+    } else if (str == "IM") {
+        return State:IM;
+    } else if (str == "SS_MB") {
+        return State:SS_MB;
+    } else if (str == "MT_MB") {
+        return State:MT_MB;
+    } else if (str == "MT_IIB") {
+        return State:MT_IIB;
+    } else if (str == "MT_IB") {
+        return State:MT_IB;
+    } else if (str == "MT_SB") {
+        return State:MT_SB;
+    } else if (str == "SS_MB_RCC") {
+        return State:SS_MB_RCC;
+    } else if (str == "MT_MB_RCC") {
+        return State:MT_MB_RCC;
+    } else {
+       return State:NP;
+    }
+
+  }
+
   AccessPermission getAccessPermission(Addr addr) {
     TBE tbe := TBEs[addr];
     if(is_valid(tbe)) {
@@ -431,7 +477,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
                                                 in_msg.Requestor, cache_entry),
                   in_msg.addr, cache_entry, tbe);
 			//David add
-			// setState(tbe,cache_entry,in_msg.addr,rcc.getState(in_msg.addr)); // overwrite cache entry to what RCC is /*CHECK*/
+			setState(tbe,cache_entry,in_msg.addr,DavidgetRCCState(in_msg.addr)); // overwrite cache entry to what RCC is /*CHECK*/
 
         } else { // not valid or RCC miss -- need to request memory to get valid data and add RCC entry
 			
