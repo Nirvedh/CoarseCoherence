@@ -1,0 +1,4 @@
+build/*
+m5out/*
+src/python/m5/*
+src/arch/*

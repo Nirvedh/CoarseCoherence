@@ -315,6 +315,20 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
       }
   }
 
+bool isReadState(State s){
+		if(s == State:S || s == State:IS || s == State:PF_IS || s == State:S){
+			return true;
+		}
+		return false;
+	}
+
+	bool isWriteState(State s){
+		if(s == State:E || s == State:M || s == State:IM || s == State:SM || s == State:PF_IM || s == State:PF_SM){
+			return true;
+		}
+		return false;
+	}
+
   int getPendingAcks(TBE tbe) {
     return tbe.pendingAcks;
   }
@@ -518,7 +532,7 @@ State DavidgetRCCState(Addr addr){
 		//David add
 		bool cache_valid := is_valid(cache_entry);
 		State orig_state := getState(tbe, cache_entry, in_msg.addr);
-		//setState(tbe, cache_entry, in_msg.addr, DavidgetRCCState(in_msg.addr)); //overwrite cache entry to do correct transition *CHECK*
+		setState(tbe, cache_entry, in_msg.addr, DavidgetRCCState(in_msg.addr)); //overwrite cache entry to do correct transition *CHECK*
 
         if (in_msg.Type == CoherenceRequestType:INV) {
 			//David add
@@ -595,7 +609,7 @@ State DavidgetRCCState(Addr addr){
 		  //if (is_valid(L1Icache_entry){
           if (is_valid(L1Icache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali.
             // The tag matches for the L1, so the L1 asks the L2 for it. -- also RCC is valid, so it is ok
-			// setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, DavidgetRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+			 setState(TBEs[in_msg.LineAddress], L1Icache_entry, in_msg.LineAddress, DavidgetRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
             trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress,
                     L1Icache_entry, TBEs[in_msg.LineAddress]);
           }
@@ -607,7 +621,7 @@ State DavidgetRCCState(Addr addr){
 		        if (is_valid(L1Dcache_entry)&& rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 		          // The block is in the wrong L1, put the request on the queue to the shared L2
 					//David add
-					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, DavidgetRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+					setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, DavidgetRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
 		          trigger(Event:L1_Replacement, in_msg.LineAddress,
 		                  L1Dcache_entry, TBEs[in_msg.LineAddress]);
 		        }
@@ -626,10 +640,10 @@ State DavidgetRCCState(Addr addr){
 								//have RCC hit, and asked for read, so we must have permission already
 								trigger(Event:RCC_HIT, in_msg.LineAddress, L1Icache_entry, TBEs[in_msg.LineAddress]);
 							}
-							/*if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(DavidgetRCCState(in_msg.LineAddress)))){
+							if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(DavidgetRCCState(in_msg.LineAddress)))){
 								//have RCC hit, asked for write, and we also have permission
 								trigger(Event:RCC_HIT, in_msg.LineAddress, L1Icache_entry, TBEs[in_msg.LineAddress]);					
-							}*/ /*CHECK*/
+							} /*CHECK*/
 						}
 					else{ //no RCC hit -- normal request
 
@@ -651,7 +665,7 @@ State DavidgetRCCState(Addr addr){
 				if (is_valid(L1Dcache_entry) && rcc.isPresent_RCC(in_msg.LineAddress)) { //Ravali
 				    // The tag matches for the L1, so the L1 ask the L2 for it
 					// David add set state
-					//setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, DavidgetRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
+					setState(TBEs[in_msg.LineAddress], L1Dcache_entry, in_msg.LineAddress, DavidgetRCCState(in_msg.LineAddress)); //copy RCC state to this cache line *CHECK*
 				    trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress,
 				            L1Dcache_entry, TBEs[in_msg.LineAddress]);
 					
@@ -680,10 +694,10 @@ State DavidgetRCCState(Addr addr){
 
 									trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);
 								}
-								/*if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(DavidgetRCCState(in_msg.LineAddress)))){
+								if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(DavidgetRCCState(in_msg.LineAddress)))){
 								//have RCC hit, asked for write, and we also have permission
 									trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);					
-								}*/ /*CHECK*/
+								} /*CHECK*/
 							}
 							else{ //no RCC hit -- normal request
 						  			trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);
@@ -2070,6 +2084,17 @@ State DavidgetRCCState(Addr addr){
     k_popMandatoryQueue;
 	a_issueRCC_GET;
   }
+
+  /*transition({NP,I}, RCC_HIT, IS) {
+    oo_allocateL1DCacheBlock;
+    i_allocateTBE;
+    a_issueGETS;
+    uu_profileDataMiss;
+    po_observeMiss;
+    k_popMandatoryQueue;
+	setStateIS;
+
+  }*/
 
   transition(S, RCC_Inv, I) {
     forward_eviction_to_cpu;
