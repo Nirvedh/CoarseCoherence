@@ -95,7 +95,9 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
     // events initiated by the local L1s
     L1_GET_INSTR,            desc="a L1I GET INSTR request for a block maped to us";
+    L1_GET_INSTR_SPECIAL,    desc="a L1I GET INSTR request for a block it already holds permission in RCTable";
     L1_GETS,                 desc="a L1D GETS request for a block maped to us";
+    L1_GETS_SPECIAL,              desc="a L1D GETS request for a block it already holds permission in RCTable";
     L1_GETX,                 desc="a L1D GETX request for a block maped to us";
     L1_UPGRADE,                 desc="a L1D GETX request for a block maped to us";
 
@@ -329,10 +331,11 @@ State DavidgetRCCState(Addr addr){
 
   Event L1Cache_request_type_to_event(CoherenceRequestType type, Addr addr,
                                       MachineID requestor, Entry cache_entry) {
-    DPRINTF(RubySlicc,"then the request is in L2");
+    DPRINTF(RubySlicc,"then the request is in L2\n");
     if(type == CoherenceRequestType:GETS) {
       return Event:L1_GETS;
     } else if(type == CoherenceRequestType:GET_INSTR) {
+	DPRINTF(RubySlicc,"then the request is in GET_INSTR\n");
       return Event:L1_GET_INSTR;
     } else if (type == CoherenceRequestType:GETX) {
       return Event:L1_GETX;
@@ -472,23 +475,38 @@ State DavidgetRCCState(Addr addr){
 		bool cache_valid := is_valid(cache_entry);
 		//State orig_state := getState(tbe,cache_entry,in_msg.addr);
 		
+		
 	
         //if (is_valid(cache_entry)) {
 		if((cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ //L2 has block, RCC permission good //Ravali
           // The L2 contains the block, so proceeded with handling the request
-          trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
+         
+		setState(tbe,cache_entry,in_msg.addr,DavidgetRCCState(in_msg.addr)); // overwrite cache entry to what RCC is /*CHECK*/
+		 trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
                                                 in_msg.Requestor, cache_entry),
                   in_msg.addr, cache_entry, tbe);
 			//David add
-			setState(tbe,cache_entry,in_msg.addr,DavidgetRCCState(in_msg.addr)); // overwrite cache entry to what RCC is /*CHECK*/
+		
 
         } else { // not valid or RCC miss -- need to request memory to get valid data and add RCC entry
 			
           if (L2cache.cacheAvail(in_msg.addr)) {
+	    if(rcc.isPresent_RCC(in_msg.addr))
+	    {
+		if(in_msg.Type == CoherenceRequestType:GETS) {
+      			trigger(Event:L1_GETS_SPECIAL,in_msg.addr, cache_entry, tbe);
+    		} else if(in_msg.Type == CoherenceRequestType:GET_INSTR) {
+			DPRINTF(RubySlicc,"then the request is in GET_INSTR\n");
+      			trigger(Event:L1_GET_INSTR_SPECIAL,in_msg.addr, cache_entry, tbe);
+    	        }							//Nirvedh adding
+            }
+            else
+            {
             // L2 does't have the line, but we have space for it in the L2
             trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
                                                   in_msg.Requestor, cache_entry),
                     in_msg.addr, cache_entry, tbe);
+            }
           } else {
             // No room in the L2, so we need to make room before handling the request
             Entry L2cache_entry := getCacheEntry(L2cache.cacheProbe(in_msg.addr));
@@ -794,7 +812,8 @@ State DavidgetRCCState(Addr addr){
     unset_tbe();
   }
 
-  action(jj_popL1RequestQueue, "\j", desc="Pop incoming L1 request queue") {
+  action(jj_popL1RequestQueue, "\j", desc="Pop incoming L1 request queue") { //Nirvedh Track 2
+    DPRINTF(RubySlicc,"This message got successfully popped\n");
     profileMsgDelay(0, ticksToCycles(L1RequestL2Network_in.dequeue(clockEdge())));
   }
 
@@ -921,7 +940,24 @@ State DavidgetRCCState(Addr addr){
     }
   }
 
-  action(nnu_addSharerFromUnblock, "\nu", desc="Add L1 sharer to list") {
+
+//////////////////nirvedh adding special/////////////////////////////
+  action(nn_addSharer_special, "\sp", desc="Add L1 sharer to list") {
+    peek(L1RequestL2Network_in, RequestMsg) {
+			//David add
+	  assert(rcc.isPresent_RCC(address)); //Ravali
+	  rcc.addSharer(address, in_msg.Requestor);
+	cache_entry.Sharers := rcc.getSharers(address);
+      assert(is_valid(cache_entry));
+      addSharer(address, in_msg.Requestor, cache_entry);
+	
+      APPEND_TRANSITION_COMMENT( cache_entry.Sharers );
+    }
+  }
+
+//////////////////////////////////////////////////////////////////////
+
+  action(nnu_addSharerFromUnblock, "\u", desc="Add L1 sharer to list") {
     peek(L1unblockNetwork_in, ResponseMsg) {
 
 //David add
@@ -1128,16 +1164,22 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(a_l2splitRCC, "sRCC_l2", desc="Split RCC into 2 entries, update sharers accordingly") {
-	peek(responseL2Network_in, ResponseMsg) { // *CHECK* responseL1Network_in --> responseL2Network_in?
-      	assert(rcc.isPresent_RCC(in_msg.addr)); //Ravali
-		rcc.splitRCC_l2(in_msg.addr,in_msg.Sender); // *CHECK* Requestor --> Sender?
+	//peek(responseL2Network_in, ResponseMsg) { // *CHECK* responseL1Network_in --> responseL2Network_in?	
+	peek(L1RequestL2Network_in, RequestMsg) {	
+      		if(!rcc.isPresent_RCC(in_msg.addr)){  //Ravali
+			rcc.splitRCC_l2(in_msg.addr,in_msg.Requestor); // *CHECK* Requestor --> Sender?
+		}
 	}
   }
 
   action(a_l2allocateRCC, "aRCC_l2", desc="allocate RCC entry to L2") {
-	peek(responseL2Network_in, ResponseMsg) { //// *CHECK* responseL1Network_in --> responseL2Network_in?
-		assert(!rcc.isPresent_RCC(in_msg.addr)); // make sure entry is not already there  //Ravali
-		//rcc.allocate_l2(in_msg.addr,in_msg.Sender); // *CHECK* allocate_l2; Requestor --> Sender?
+//peek(responseL2Network_in, ResponseMsg) { // old code, mostly a bug
+	DPRINTF(RubySlicc,"before peeking\n");
+	peek(L1RequestL2Network_in, RequestMsg) { //// *CHECK* responseL1Network_in --> responseL2Network_in? //nirvedh track 3
+		DPRINTF(RubySlicc,"This message is being peeked\n");
+		if(!rcc.isPresent_RCC(in_msg.addr)){ //   Nirvedh mdfy this used to be a assert but it has to be a if statement
+			rcc.allocate_l2(in_msg.addr,in_msg.Requestor); // Nirvedh mdfy, this was commented
+		}	
 	}
   }
 
@@ -1201,7 +1243,7 @@ State DavidgetRCCState(Addr addr){
     qq_allocateL2CacheBlock;
 
 //David add
-	a_l2allocateRCC;
+	a_l2allocateRCC; //Nirvedh track 1
 
     ll_clearSharers;
     nn_addSharer;
@@ -1214,6 +1256,46 @@ State DavidgetRCCState(Addr addr){
 	
 	setStateIS;
   }
+
+
+/////////////////Nirvedh adding for special transitions ///////////////////////////////////////
+
+  transition(NP, L1_GETS_SPECIAL,  ISS) {
+    qq_allocateL2CacheBlock;
+	//David add
+
+	a_l2allocateRCC;	
+    nn_addSharer_special;
+    i_allocateTBE;
+    ss_recordGetSL1ID;
+    a_issueFetchToMemory;
+    uu_profileMiss;
+    jj_popL1RequestQueue;
+
+
+	//setStateISS;
+  }
+
+  transition(NP, L1_GET_INSTR_SPECIAL, IS) {
+    qq_allocateL2CacheBlock;
+
+//David add
+	a_l2allocateRCC; //Nirvedh track 1
+
+    ll_clearSharers;
+    nn_addSharer_special;
+    i_allocateTBE;
+    ss_recordGetSL1ID;
+    a_issueFetchToMemory;
+    uu_profileMiss;
+    jj_popL1RequestQueue;
+
+	
+	//setStateIS;
+  }
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////
 
   transition(NP, L1_GETX, IM) {
     qq_allocateL2CacheBlock;
