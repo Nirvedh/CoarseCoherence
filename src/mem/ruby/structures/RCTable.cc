@@ -36,9 +36,10 @@
 #include "mem/ruby/structures/RCTable.hh"
 
 using namespace std;
-int const max_granularity = 256;
-int const min_granularity = 16;
+int const max_granularity = 64;
+int const min_granularity = 1;
 int const gstep=1;
+int b_sz = RubySystem::getBlockSizeBits();
 
 /*CHECK*: int state --> State state? */
 
@@ -83,7 +84,7 @@ RCTable::allocate(Addr address, int granularity)//, L1Cache_State state=L1Cache_
   RCEntryL1 entry;
   entry.granularity = granularity;
   entry.state = "L1Cache_State_NP";
-  RCTableL1.insert(make_pair(address,entry));
+  RCTableL1.insert(make_pair(maskLowOrderBits(address,granularity+b_sz),entry));
 }
 void
 RCTable::allocate_l2(Addr address, MachineID Requester)//, L2Cache_State state=L2Cache_State_NP) /*CHECK* state*/
@@ -92,78 +93,319 @@ RCTable::allocate_l2(Addr address, MachineID Requester)//, L2Cache_State state=L
   entry.granularity = max_granularity;
   entry.state = "L2Cache_State_NP";
   entry.sharer.add(Requester);
-  RCTableL2.insert(make_pair(address,entry));
+  RCTableL2.insert(make_pair(maskLowOrderBits(address,max_granularity+b_sz),entry));
 }
 string
 RCTable::getRCCL1State(Addr address)
 {
   int gIter = max_granularity;
-  string state= "L1Cache_State_NP";
+  string default_state= "L1Cache_State_NP";
     while(gIter >= min_granularity)
     {
-      RCTableL1.count(maskLowOrderBits(address,gIter));
-      gIter=gIter>>1;
+      int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
+      assert(count <= 1);
+      if (count==1)
+	return ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).state;
+      gIter=gIter>>gstep;
     }
-  return state;
+  return default_state;
 }
 string
 RCTable::getRCCL2State(Addr address)
 {
   int gIter = max_granularity;
-  string state= "L2Cache_State_NP";
+  string default_state= "L2Cache_State_NP";
     while(gIter >= min_granularity)
     {
-      RCTableL2.count(maskLowOrderBits(address,gIter));
-      gIter=gIter>>1;
+      int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
+      assert(count <= 1);
+      if (count==1)
+	return ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).state;
+      gIter=gIter>>gstep;
     }
-  return state;
+  return default_state;
 }
 void 
 RCTable::setRCCL1State(Addr address,string state)
 {
+    int gIter = max_granularity;
+    while(gIter >= min_granularity)
+    {
+      int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
+      assert(count <= 1);
+      if (count==1)
+      {
+	((RCTableL1.find(maskLowOrderBits(address,gIter+ b_sz)))->second).state=state;
+	return;
+      }
+      gIter=gIter>>gstep;
+    }
 }
 void 
 RCTable::setRCCL2State(Addr address,string state)
 {
+  int gIter = max_granularity;
+  while(gIter >= min_granularity)
+  {
+    int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
+    assert(count <= 1);
+    if (count==1)
+    {
+      ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).state=state;
+      return;
+    }
+    gIter=gIter>>gstep;
+  }
 }
 int 
 RCTable::getGranularity(Addr address)
 {
+    int gIter = max_granularity;
+    if(isL1Cache)
+    {
+      while(gIter >= min_granularity)
+      {
+	int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
+	assert(count <= 1);
+	if (count==1)
+	  return ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity;
+	gIter=gIter>>gstep;
+       }
+    }
+    else
+    {
+        while(gIter >= min_granularity)
+	{
+	  int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
+	  assert(count <= 1);
+	  if (count==1)
+	    return ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).granularity;
+	  gIter=gIter>>gstep;
+	}
+      
+    }
+    
   return 0;
 }
 Addr 
 RCTable::getMask(Addr address)
 {
+    int gIter = max_granularity;
+    if(isL1Cache)
+    {
+      while(gIter >= min_granularity)
+      {
+	int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
+	assert(count <= 1);
+	if (count==1)
+	  return ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->first);
+	gIter=gIter>>gstep;
+       }
+    }
+    else
+    {
+        while(gIter >= min_granularity)
+	{
+	  int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
+	  assert(count <= 1);
+	  if (count==1)
+	    return ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->first);
+	  gIter=gIter>>gstep;
+	}
+      
+    }
   return 0;
 }
 NetDest 
 RCTable::getSharers(Addr address)
 {
+  int gIter = max_granularity;
+  string default_state= "L2Cache_State_NP";
+  while(gIter >= min_granularity)
+  {
+    int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
+    assert(count <= 1);
+    if (count==1)
+    return ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).sharer;
+      gIter=gIter>>gstep;
+   }
+ assert(1==0); //Basically pray (hope) you never get here
+  
   return (RCTableL2.begin()->second).sharer;
 }
 void 
 RCTable::addSharer(Addr address,MachineID Requester)
 {
+  int gIter = max_granularity;
+  string default_state= "L2Cache_State_NP";
+  while(gIter >= min_granularity)
+  {
+    int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
+    assert(count <= 1);
+    if (count==1)
+    {
+    ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).sharer.add(Requester);
+    return;
+    }
+      gIter=gIter>>gstep;
+   }
+ assert(1==0); //pray (hope) you never get here
+  
 }
 void 
 RCTable::removeSharer(Addr address,MachineID Requester)
 {
+  int gIter = max_granularity;
+  string default_state= "L2Cache_State_NP";
+  while(gIter >= min_granularity)
+  {
+    int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
+    assert(count <= 1);
+    if (count==1)
+    {
+      ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).sharer.remove(Requester);
+      return;
+    }
+      gIter=gIter>>gstep;
+   }
+   assert(1==0); //pray (hope) you never get here
 }
 void 
 RCTable::clearSharers(Addr address)
 {
+  int gIter = max_granularity;
+  string default_state= "L2Cache_State_NP";
+  while(gIter >= min_granularity)
+  {
+    int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
+    assert(count <= 1);
+    if (count==1)
+    {
+      ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).sharer.clear();
+      return;
+    }
+      gIter=gIter>>gstep;
+   }
+   assert(1==0); //pray (hope) you never get here
+  
 }
 void 
 RCTable::split(Addr address)
 {
+  assert(isL1Cache);
+  int gIter = max_granularity;
+  while(gIter >= min_granularity)
+  {
+    int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
+    assert(count <= 1);
+    if (count==1)
+    {
+      Addr curr_addr=(RCTableL1.find(maskLowOrderBits(address,gIter+ b_sz)))->first;
+      if(gIter==min_granularity)
+      {
+	RCTableL1.erase(curr_addr);
+      }
+      else if (curr_addr<=maskLowOrderBits(address,gIter+ b_sz-1))
+      {
+	((RCTableL1.find(curr_addr))->second).granularity=gIter-1;
+      }
+      else
+      {
+	assert(curr_addr==maskLowOrderBits(address,gIter+ b_sz-1));
+	RCEntryL1 temp;
+	temp.state =  ((RCTableL1.find(curr_addr))->second).state;
+	temp.granularity = gIter-1;
+	RCTableL1.erase(curr_addr);
+	RCTableL1.insert(make_pair(makeNextStrideAddress(curr_addr,gIter-1),temp));
+      }
+       return;
+     }
+    
+      gIter=gIter>>gstep;
+    }
+   assert(1==0); //pray (hope) you never get here
 }
 void 
 RCTable::splitRCC_l2(Addr address,MachineID Requester)
 {
+  assert(isL1Cache);
+  int gIter = max_granularity;
+  while(gIter >= min_granularity)
+  {
+    int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
+    assert(count <= 1);
+    if (count==1)
+    {
+      Addr curr_addr=(RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->first;
+      if(gIter==min_granularity)
+      {
+	
+	RCEntryL2 temp;
+	temp.state = (RCTableL2.find(curr_addr)->second).state;
+	temp.sharer.add(Requester);
+	temp.granularity = min_granularity;
+	RCTableL2.erase(curr_addr);
+	RCTableL2.insert(make_pair(curr_addr,temp));
+	return;
+      }
+      else if (curr_addr<=maskLowOrderBits(address,gIter+ b_sz-1))
+      {
+	((RCTableL2.find(curr_addr))->second).granularity=gIter-1;
+	RCEntryL2 temp;
+	temp.state = (RCTableL2.find(curr_addr)->second).state;
+	temp.sharer.add(Requester);
+	temp.granularity = gIter-1;
+	RCTableL2.insert(make_pair(curr_addr,temp));
+      }
+      else
+      {
+	assert(curr_addr==maskLowOrderBits(address,gIter+ b_sz-1));
+	RCEntryL2 temp;
+	temp.state =  ((RCTableL2.find(curr_addr))->second).state;
+	temp.granularity = gIter-1;
+	temp.sharer = ((RCTableL2.find(curr_addr))->second).sharer;
+	RCTableL2.erase(curr_addr);
+	RCTableL2.insert(make_pair(makeNextStrideAddress(curr_addr,gIter-1),temp));
+	
+	RCEntryL2 temp1;
+	temp1.state =  temp.state;
+	temp1.granularity = gIter-1;
+	temp1.sharer.add(Requester);
+	RCTableL2.insert(make_pair(curr_addr,temp));
+      }
+      return;
+     }
+      gIter=gIter>>gstep;
+    }
+   assert(1==0); //pray (hope) you never get here
 } 
 bool
 RCTable::isPresent_RCC(Addr address)
 {
-	return true;
+    int gIter = max_granularity;
+    if(isL1Cache)
+    {
+      while(gIter >= min_granularity)
+      {
+	int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
+	assert(count <= 1);
+	if (count==1)
+	  return true;
+	gIter=gIter>>gstep;
+       }
+    }
+    else
+    {
+        while(gIter >= min_granularity)
+	{
+	  int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
+	  assert(count <= 1);
+	  if (count==1)
+	    return true;
+	  gIter=gIter>>gstep;
+	}
+      
+    }
+  return false;
 } 
 
