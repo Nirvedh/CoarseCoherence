@@ -38,6 +38,7 @@ class DataMember(Var):
                                          code, pairs, machine)
         self.init_code = init_code
 
+
 class Enumeration(PairContainer):
     def __init__(self, ident, pairs):
         super(Enumeration, self).__init__(pairs)
