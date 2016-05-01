@@ -294,6 +294,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
     if (type == RubyRequestType:LD) {
       return Event:Load;
     } else if (type == RubyRequestType:IFETCH) {
+      DPRINTF(RubySlicc, "it does get a ifetch request\n");
       return Event:Ifetch;
     } else if ((type == RubyRequestType:ST) || (type == RubyRequestType:ATOMIC)) {
       return Event:Store;
@@ -758,8 +759,8 @@ State DavidgetRCCState(Addr addr){
         out_msg.Requestor := machineID;
         out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
                           l2_select_low_bit, l2_select_num_bits, intToID(0)));
-        DPRINTF(RubySlicc, "address: %s, destination: %s\n",
-                address, out_msg.Destination);
+        //DPRINTF(RubySlicc, "address: %s, destination: %s\n",
+          //      address, out_msg.Destination);
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.Prefetch := in_msg.Prefetch;
         out_msg.AccessMode := in_msg.AccessMode;
@@ -775,8 +776,8 @@ State DavidgetRCCState(Addr addr){
         out_msg.Requestor := machineID;
         out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
                           l2_select_low_bit, l2_select_num_bits, intToID(0)));
-        DPRINTF(RubySlicc, "address: %s, destination: %s\n",
-                address, out_msg.Destination);
+        //DPRINTF(RubySlicc, "address: %s, destination: %s\n",
+           //     address, out_msg.Destination);
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.Prefetch := in_msg.Prefetch;
         out_msg.AccessMode := in_msg.AccessMode;
@@ -792,8 +793,8 @@ State DavidgetRCCState(Addr addr){
         out_msg.Requestor := machineID;
         out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
                           l2_select_low_bit, l2_select_num_bits, intToID(0)));
-        DPRINTF(RubySlicc, "address: %s, destination: %s\n",
-                address, out_msg.Destination);
+        //DPRINTF(RubySlicc, "address: %s, destination: %s\n",
+             //   address, out_msg.Destination);
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.Prefetch := in_msg.Prefetch;
         out_msg.AccessMode := in_msg.AccessMode;
@@ -815,8 +816,8 @@ State DavidgetRCCState(Addr addr){
               out_msg.Prefetch := in_msg.Prefetch;
               out_msg.AccessMode := in_msg.AccessMode;
 
-              DPRINTF(RubySlicc, "address: %s, destination: %s\n",
-                      address, out_msg.Destination);
+              //DPRINTF(RubySlicc, "address: %s, destination: %s\n",
+               //       address, out_msg.Destination);
           }
       }
   }
@@ -827,11 +828,11 @@ State DavidgetRCCState(Addr addr){
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:GETX;
         out_msg.Requestor := machineID;
-        DPRINTF(RubySlicc, "%s\n", machineID);
+        //DPRINTF(RubySlicc, "%s\n", machineID);
         out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
                           l2_select_low_bit, l2_select_num_bits, intToID(0)));
-        DPRINTF(RubySlicc, "address: %s, destination: %s\n",
-                address, out_msg.Destination);
+        //DPRINTF(RubySlicc, "address: %s, destination: %s\n",
+               // address, out_msg.Destination);
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.Prefetch := in_msg.Prefetch;
         out_msg.AccessMode := in_msg.AccessMode;
@@ -845,13 +846,13 @@ State DavidgetRCCState(Addr addr){
               out_msg.addr := address;
               out_msg.Type := CoherenceRequestType:GETX;
               out_msg.Requestor := machineID;
-              DPRINTF(RubySlicc, "%s\n", machineID);
+              //DPRINTF(RubySlicc, "%s\n", machineID);
 
               out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
                           l2_select_low_bit, l2_select_num_bits, intToID(0)));
 
-              DPRINTF(RubySlicc, "address: %s, destination: %s\n",
-                      address, out_msg.Destination);
+              //DPRINTF(RubySlicc, "address: %s, destination: %s\n",
+                 //     address, out_msg.Destination);
               out_msg.MessageSize := MessageSizeType:Control;
               out_msg.Prefetch := in_msg.Prefetch;
               out_msg.AccessMode := in_msg.AccessMode;
@@ -869,8 +870,8 @@ State DavidgetRCCState(Addr addr){
         out_msg.Requestor := machineID;
         out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
                           l2_select_low_bit, l2_select_num_bits, intToID(0)));
-        DPRINTF(RubySlicc, "address: %s, destination: %s\n",
-                address, out_msg.Destination);
+        //DPRINTF(RubySlicc, "address: %s, destination: %s\n",
+               // address, out_msg.Destination);
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.Prefetch := in_msg.Prefetch;
         out_msg.AccessMode := in_msg.AccessMode;
@@ -1000,7 +1001,7 @@ State DavidgetRCCState(Addr addr){
 
   action(forward_eviction_to_cpu, "\cc", desc="sends eviction information to the processor") {
     if (send_evictions) {
-      DPRINTF(RubySlicc, "Sending invalidation for %s to the CPU\n", address);
+      //DPRINTF(RubySlicc, "Sending invalidation for %s to the CPU\n", address);
       sequencer.evictionCallback(address);
     }
   }
@@ -1031,7 +1032,7 @@ State DavidgetRCCState(Addr addr){
       out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
                           l2_select_low_bit, l2_select_num_bits, intToID(0)));
       out_msg.MessageSize := MessageSizeType:Response_Control;
-      DPRINTF(RubySlicc, "%s\n", address);
+      //DPRINTF(RubySlicc, "%s\n", address);
     }
   }
 
@@ -1043,7 +1044,7 @@ State DavidgetRCCState(Addr addr){
       out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
                           l2_select_low_bit, l2_select_num_bits, intToID(0)));
       out_msg.MessageSize := MessageSizeType:Response_Control;
-      DPRINTF(RubySlicc, "%s\n", address);
+      //DPRINTF(RubySlicc, "%s\n", address);
 
     }
   }
@@ -1057,7 +1058,7 @@ State DavidgetRCCState(Addr addr){
          desc="If not prefetch, notify sequencer the load completed.")
   {
     assert(is_valid(cache_entry));
-    DPRINTF(RubySlicc, "%s\n", cache_entry.DataBlk);
+    //DPRINTF(RubySlicc, "%s\n", cache_entry.DataBlk);
     sequencer.readCallback(address, cache_entry.DataBlk);
   }
 
@@ -1065,7 +1066,7 @@ State DavidgetRCCState(Addr addr){
          desc="If not prefetch, notify sequencer the load completed.")
   {
     assert(is_valid(cache_entry));
-    DPRINTF(RubySlicc, "%s\n", cache_entry.DataBlk);
+    //DPRINTF(RubySlicc, "%s\n", cache_entry.DataBlk);
     sequencer.readCallback(address, cache_entry.DataBlk, true);
   }
 
@@ -1073,7 +1074,7 @@ State DavidgetRCCState(Addr addr){
          desc="If not prefetch, notify sequencer that store completed.")
   {
     assert(is_valid(cache_entry));
-    DPRINTF(RubySlicc, "%s\n", cache_entry.DataBlk);
+    //DPRINTF(RubySlicc, "%s\n", cache_entry.DataBlk);
     sequencer.writeCallback(address, cache_entry.DataBlk);
     cache_entry.Dirty := true;
   }
@@ -1082,7 +1083,7 @@ State DavidgetRCCState(Addr addr){
          desc="If not prefetch, notify sequencer that store completed.")
   {
     assert(is_valid(cache_entry));
-    DPRINTF(RubySlicc, "%s\n", cache_entry.DataBlk);
+    //DPRINTF(RubySlicc, "%s\n", cache_entry.DataBlk);
     sequencer.writeCallback(address, cache_entry.DataBlk, true);
     cache_entry.Dirty := true;
   }
@@ -1099,6 +1100,7 @@ State DavidgetRCCState(Addr addr){
 
   action(k_popMandatoryQueue, "k", desc="Pop mandatory queue.") {
     mandatoryQueue_in.dequeue(clockEdge());
+    DPRINTF(RubySlicc, "successfully popped queue this was not reaching\n"); //Nirvedh Track fix me  
   }
 
   action(l_popRequestQueue, "l",
@@ -1151,12 +1153,14 @@ State DavidgetRCCState(Addr addr){
 
   action(pp_allocateL1ICacheBlock, "\p", desc="Set L1 I-cache tag equal to tag of block B.") {
     if (is_invalid(cache_entry)) {
+    DPRINTF(RubySlicc, "it does have invalid cache entry\n"); //Nirvedh Track 2
       set_cache_entry(L1Icache.allocate(address, new Entry));
     }
   }
 
   action(z_stallAndWaitMandatoryQueue, "\z", desc="recycle L1 request queue") {
     stall_and_wait(mandatoryQueue_in, address);
+    
   }
 
   action(kd_wakeUpDependents, "kd", desc="wake-up dependents") {
@@ -1219,11 +1223,11 @@ State DavidgetRCCState(Addr addr){
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:RCC_GET; //may need to change the request type
         out_msg.Requestor := machineID;
-        DPRINTF(RubySlicc, "%s\n", machineID);
+        //DPRINTF(RubySlicc, "%s\n", machineID);
         out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
                           l2_select_low_bit, l2_select_num_bits, intToID(0)));
-        DPRINTF(RubySlicc, "address: %s, destination: %s\n",
-                address, out_msg.Destination);
+        //DPRINTF(RubySlicc, "address: %s, destination: %s\n",
+                //address, out_msg.Destination);
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.Prefetch := in_msg.Prefetch;
         out_msg.AccessMode := in_msg.AccessMode;
@@ -1281,14 +1285,20 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(a_allocateRCC, "aRCC", desc = "use info from message to allocate RCC entry") {
+  DPRINTF(RubySlicc, "allocate before peeking in the network\n");
 	peek(responseL1Network_in, ResponseMsg) {
+       DPRINTF(RubySlicc, "before the assert in the peek\n");
       assert(is_valid(cache_entry));
-
+      DPRINTF(RubySlicc, "successfully reached point before allocate\n"); //Nirvedh track 4
       rcc.allocate(in_msg.mask,in_msg.granularity); /*CHECK*/
+      DPRINTF(RubySlicc, "successfully reached point after allocate\n");
 	assert(rcc.isPresent_RCC(address));
     }
+    DPRINTF(RubySlicc, "rcc allocate end of action\n");
 
   }
+  
+  
 
   action(a_multiplePUTX, "mPUTX", desc = "write back all modified data to the L2") {
 	//David TODO
@@ -1477,12 +1487,12 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(setStateIS,"ssIS", desc="set RCC to IS"){
-	assert(rcc.isPresent_RCC(address));
+	//assert(rcc.isPresent_RCC(address)); //rm-Nirvedh decided to remove this because allocates are only done through response from L2
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IS));
   }
 
   action(setStateIM,"ssIM", desc="set RCC to IM"){
-	assert(rcc.isPresent_RCC(address));
+	//assert(rcc.isPresent_RCC(address)); // rm-Nirvedh decided to remove this because allocates are only done through response from L2
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IM));
   }
 
@@ -1590,11 +1600,12 @@ State DavidgetRCCState(Addr addr){
 	setStateIS_I;
   }
 
-  transition({NP,I}, Ifetch, IS) {
+  transition({NP,I}, Ifetch, IS) { //Nirvedh Track 1
     pp_allocateL1ICacheBlock;
 
 //David add
-	a_allocateRCC;
+	//a_allocateRCC; // rm-Nirvedh decided to remove this because allocates are only done through response from L2 and
+                  // This is request to L1 from the core 
 
     i_allocateTBE;
     ai_issueGETINSTR;
