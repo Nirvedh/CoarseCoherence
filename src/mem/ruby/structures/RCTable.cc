@@ -328,7 +328,7 @@ RCTable::split(Addr address)
 void 
 RCTable::splitRCC_l2(Addr address,MachineID Requester)
 {
-  assert(isL1Cache);
+  assert(isL2Cache);
   int gIter = max_granularity;
   while(gIter >= min_granularity)
   {
