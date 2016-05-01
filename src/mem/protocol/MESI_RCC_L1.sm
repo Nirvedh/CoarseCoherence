@@ -334,6 +334,9 @@ bool isReadState(State s){
   }
 
 State DavidgetRCCState(Addr addr){
+	if(!rcc.isPresent_RCC(addr)){
+		return State:NP;
+	}
 	std::string str := (rcc.getRCCL1State(addr)); 
  if (str == "NP") {
         return State:NP;
@@ -1205,6 +1208,7 @@ State DavidgetRCCState(Addr addr){
   action(a_splitRCC, "sRCC", desc="split the RCC if possible. If lowest granularity, send signal to invalidate.") {
 	peek(responseL1Network_in, ResponseMsg) {
       	assert(is_valid(cache_entry));
+	assert(rcc.isPresent_RCC(address));
 		rcc.split(in_msg.addr);
 	}
   }
@@ -1279,13 +1283,16 @@ State DavidgetRCCState(Addr addr){
   action(a_allocateRCC, "aRCC", desc = "use info from message to allocate RCC entry") {
 	peek(responseL1Network_in, ResponseMsg) {
       assert(is_valid(cache_entry));
-      //rcc.allocate(in_msg.mask,in_msg.granularity); /*CHECK*/
+
+      rcc.allocate(in_msg.mask,in_msg.granularity); /*CHECK*/
+	assert(rcc.isPresent_RCC(address));
     }
 
   }
 
   action(a_multiplePUTX, "mPUTX", desc = "write back all modified data to the L2") {
 	//David TODO
+	assert(rcc.isPresent_RCC(address));
 	int gran := rcc.getGranularity(address);
 	Addr mask := rcc.getMask(address);
 
@@ -1445,58 +1452,72 @@ State DavidgetRCCState(Addr addr){
 /* *CHECK* Type 'RCTable' does not have a method setRCCL1State, 'setRCCL1State_Addr_L1Cache_State' nor '':*/
 
   action(setStateNP,"ssnp", desc="set RCC to NP"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:NP));
   }
 
   action(setStateI,"ssi", desc="set RCC to I"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:I));
   }
 
   action(setStateS,"sss", desc="set RCC to S"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:S));
   }
 
   action(setStateE,"sse", desc="set RCC to E"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:E));
   }
 
   action(setStateM,"ssm", desc="set RCC to M"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:M));
   }
 
   action(setStateIS,"ssIS", desc="set RCC to IS"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IS));
   }
 
   action(setStateIM,"ssIM", desc="set RCC to IM"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IM));
   }
 
   action(setStateSM,"ssSM", desc="set RCC to SM"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:SM));
   }
 
   action(setStateIS_I,"ssISI", desc="set RCC to IS_I"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IS_I));
   }
 
   action(setStateSINK,"ssSINK", desc="set RCC to SINK_WB_ACK"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:SINK_WB_ACK));
   }
 
   action(setStatePF_IS,"ssPF_IS", desc="set RCC to PF_IS"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:PF_IS));
   }
 
   action(setStatePF_IM,"ssPF_IM", desc="set RCC to PF_IM"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:PF_IM));
   }
 
   action(setStatePF_SM,"ssPF_SM", desc="set RCC to PF_SM"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:PF_SM));
   }
 
   action(setStatePF_IS_I,"ssPF_IS_I", desc="set RCC to PF_IS_I"){
+	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:PF_IS_I));
   }
 
@@ -1531,6 +1552,10 @@ State DavidgetRCCState(Addr addr){
 
   transition({NP,I}, Load, IS) {
     oo_allocateL1DCacheBlock;
+
+//David add
+	a_allocateRCC;
+
     i_allocateTBE;
     a_issueGETS;
     uu_profileDataMiss;
@@ -1541,6 +1566,10 @@ State DavidgetRCCState(Addr addr){
 
   transition({NP,I}, PF_Load, PF_IS) {
     oo_allocateL1DCacheBlock;
+
+//David add
+	a_allocateRCC;
+
     i_allocateTBE;
     pa_issuePfGETS;
     pq_popPrefetchQueue;
@@ -1563,6 +1592,10 @@ State DavidgetRCCState(Addr addr){
 
   transition({NP,I}, Ifetch, IS) {
     pp_allocateL1ICacheBlock;
+
+//David add
+	a_allocateRCC;
+
     i_allocateTBE;
     ai_issueGETINSTR;
     uu_profileInstMiss;
@@ -1573,6 +1606,10 @@ State DavidgetRCCState(Addr addr){
 
   transition({NP,I}, PF_Ifetch, PF_IS) {
     pp_allocateL1ICacheBlock;
+
+//David add
+	a_allocateRCC;
+
     i_allocateTBE;
     pai_issuePfGETINSTR;
     pq_popPrefetchQueue;
@@ -1590,6 +1627,10 @@ State DavidgetRCCState(Addr addr){
 
   transition({NP,I}, Store, IM) {
     oo_allocateL1DCacheBlock;
+
+//David add
+	a_allocateRCC;
+
     i_allocateTBE;
     b_issueGETX;
     uu_profileDataMiss;
@@ -1600,6 +1641,10 @@ State DavidgetRCCState(Addr addr){
 
   transition({NP,I}, PF_Store, PF_IM) {
     oo_allocateL1DCacheBlock;
+
+//David add
+	a_allocateRCC;
+
     i_allocateTBE;
     pb_issuePfGETX;
     pq_popPrefetchQueue;
@@ -1877,14 +1922,17 @@ State DavidgetRCCState(Addr addr){
   //transition(IS, RCC_allocate, S) {
   transition(IS, Data_all_Acks, S) {
     u_writeDataToL1Cache;
+
+	//David add
+	//a_allocateRCC;
+
     j_sendUnblock;
     hx_load_hit;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
 
-	//David add
-	a_allocateRCC;
+
 	setStateS;
   }
 
@@ -1892,13 +1940,16 @@ State DavidgetRCCState(Addr addr){
   //transition(PF_IS, RCC_allocate, S) {
   transition(PF_IS, Data_all_Acks, S) {
     u_writeDataToL1Cache;
+
+	//David add
+	//a_allocateRCC;
+
     j_sendUnblock;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
 
-	//David add
-	a_allocateRCC;
+
 	setStateS;
   }
 
@@ -2002,28 +2053,34 @@ State DavidgetRCCState(Addr addr){
 //  transition(IM, RCC_allocate, M) {
   transition(IM, Data_all_Acks, M) {
     u_writeDataToL1Cache;
+
+	//David add
+	//a_allocateRCC;
+
     hhx_store_hit;
     jj_sendExclusiveUnblock;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
 
-	//David add
-	a_allocateRCC;
+
 	setStateM;
   }
 
 //  transition(PF_IM, RCC_allocate, M) {
   transition(PF_IM, Data_all_Acks, M) {
     u_writeDataToL1Cache;
+
+	//David add
+	//a_allocateRCC;
+
     jj_sendExclusiveUnblock;
     s_deallocateTBE;
     mp_markPrefetched;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
 
-	//David add
-	a_allocateRCC;
+
 	setStateM;
   }
 
