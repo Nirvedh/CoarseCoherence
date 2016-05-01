@@ -1290,8 +1290,10 @@ State DavidgetRCCState(Addr addr){
        DPRINTF(RubySlicc, "before the assert in the peek\n");
       assert(is_valid(cache_entry));
       DPRINTF(RubySlicc, "successfully reached point before allocate\n"); //Nirvedh track 4
-      rcc.allocate(in_msg.mask,in_msg.granularity); /*CHECK*/
-      DPRINTF(RubySlicc, "successfully reached point after allocate\n");
+	if(!rcc.isPresent_RCC(address)){      
+		rcc.allocate(in_msg.mask,in_msg.granularity); /*CHECK*/
+     		 DPRINTF(RubySlicc, "successfully reached point after L1 RCC allocate\n");
+	}
 	assert(rcc.isPresent_RCC(address));
     }
     DPRINTF(RubySlicc, "rcc allocate end of action\n");
@@ -1562,69 +1564,48 @@ State DavidgetRCCState(Addr addr){
 
   transition({NP,I}, Load, IS) {
     oo_allocateL1DCacheBlock;
-
-//David add
-	//a_allocateRCC;  //Nirvedh rm 
-
     i_allocateTBE;
     a_issueGETS;
     uu_profileDataMiss;
     po_observeMiss;
     k_popMandatoryQueue;
-	//setStateIS; //Nirvedh rm 
+
   }
 
   transition({NP,I}, PF_Load, PF_IS) {
     oo_allocateL1DCacheBlock;
-
-//David add
-	// a_allocateRCC; // Nirvedh rm
-
     i_allocateTBE;
     pa_issuePfGETS;
     pq_popPrefetchQueue;
-    //setStatePF_IS;  // nirvedh rm
   }
 
   transition(PF_IS, Load, IS) {
     uu_profileDataMiss;
     ppm_observePfMiss;
     k_popMandatoryQueue;
-	setStateIS;
   }
 
   transition(PF_IS_I, Load, IS_I) {
     uu_profileDataMiss;
     ppm_observePfMiss;
     k_popMandatoryQueue;
-	  //setStateIS_I;
   }
 
   transition({NP,I}, Ifetch, IS) { //Nirvedh Track 1
     pp_allocateL1ICacheBlock;
-
-//David add
-	//a_allocateRCC; // Nirvedh rm decided to remove this because allocates are only done through response from L2 and
-                  // This is request to L1 from the core 
-
     i_allocateTBE;
     ai_issueGETINSTR;
     uu_profileInstMiss;
     po_observeMiss;
     k_popMandatoryQueue;
-	  //setStateIS;
+
   }
 
   transition({NP,I}, PF_Ifetch, PF_IS) {
     pp_allocateL1ICacheBlock;
-
-//David add
-	a_allocateRCC;
-
     i_allocateTBE;
     pai_issuePfGETINSTR;
     pq_popPrefetchQueue;
-	setStatePF_IS;
   }
 
   // We proactively assume that the prefetch is in to
@@ -1633,7 +1614,6 @@ State DavidgetRCCState(Addr addr){
     uu_profileDataMiss;
     ppm_observePfMiss;
     k_popMandatoryQueue;
-	setStateIS;
   }
 
   transition({NP,I}, Store, IM) {
@@ -1647,33 +1627,33 @@ State DavidgetRCCState(Addr addr){
     uu_profileDataMiss;
     po_observeMiss;
     k_popMandatoryQueue;
-   	setStateIM;  //Nirvedh rm
+   //	setStateIM;  //Nirvedh rm
   }
 
   transition({NP,I}, PF_Store, PF_IM) {
     oo_allocateL1DCacheBlock;
 
 //David add
-	a_allocateRCC;
+	//a_allocateRCC;
 
     i_allocateTBE;
     pb_issuePfGETX;
     pq_popPrefetchQueue;
-	setStatePF_IM;
+	//setStatePF_IM;
   }
 
   transition(PF_IM, Store, IM) {
     uu_profileDataMiss;
     ppm_observePfMiss;
     k_popMandatoryQueue;
-	setStateIM;
+	//setStateIM;
   }
 
   transition(PF_SM, Store, SM) {
     uu_profileDataMiss;
     ppm_observePfMiss;
     k_popMandatoryQueue;
-	setStateSM;
+	//setStateSM;
   }
 
   transition({NP, I}, Inv) {
@@ -1699,7 +1679,7 @@ State DavidgetRCCState(Addr addr){
     c_issueUPGRADE;
     uu_profileDataMiss;
     k_popMandatoryQueue;
-	setStateSM;
+	//setStateSM; // David May1 -- Do not set state, Cache line will reflect so it knows what to do upon response, but the actual block doesn't need
   }
 
 //David-Question: Can we keep in S? If evict and another block asks, the L2 RCC will ask for data (since unknown anyways), and could just send NACK if don't have data
@@ -1715,14 +1695,13 @@ State DavidgetRCCState(Addr addr){
     forward_eviction_to_cpu;
     fi_sendInvAck;
     l_popRequestQueue;
-
 //David add
 	a_splitRCC;
   }
 
   // Transitions from Exclusive
 
-  transition({E,M}, Store, M) {
+  transition({E,M}, Store, M) { //silent upgrade
     hh_store_hit;
     uu_profileDataHit;
     k_popMandatoryQueue;
@@ -1743,7 +1722,6 @@ State DavidgetRCCState(Addr addr){
     forward_eviction_to_cpu;
     fi_sendInvAck;
     l_popRequestQueue;
-
 //David add
 	a_splitRCC;
   }
@@ -1755,7 +1733,8 @@ State DavidgetRCCState(Addr addr){
     l_popRequestQueue;
 
 //David add
-	d2_sendDataToL2;
+	d2_sendDataToL2; //David May1 -- I think we need, L2 awaiting response?
+	//a_multiplePUTX; //David May1 -- do not need, whole block was in E, nothing was dirtied, just split
 	a_splitRCC;
 	//a_sendAckNack;
 	//a_sendRCC_allocateToRequestor;
@@ -1765,7 +1744,8 @@ State DavidgetRCCState(Addr addr){
 //David modify
   transition(E, {Fwd_GETS, Fwd_GET_INSTR}, S) {
     //d_sendDataToRequestor;
-    d2_sendDataToL2;
+	// no DavidPutX needed -- whole block was in E, nothing was dirtied
+    //a_multiplePUTX;
     l_popRequestQueue;
 
 //David add
@@ -1792,10 +1772,11 @@ State DavidgetRCCState(Addr addr){
 
   transition(M, Inv, M_I) {
     forward_eviction_to_cpu;
-    f_sendDataToL2;
+    f_sendDataToL2;  //David May1 -- not sure -- may need to keep as L2 probably is awaiting response, even though we're about to PUTX everything
     l_popRequestQueue;
 
 //David add
+	a_multiplePUTX; //David May1 -- before the split, write everything back that you're losing permission to
 	a_splitRCC;
   }
 
@@ -1809,12 +1790,12 @@ State DavidgetRCCState(Addr addr){
   transition(M, Fwd_GETX, I) {
     forward_eviction_to_cpu;
     //d_sendDataToRequestor;
-    d2_sendDataToL2;
+    d2_sendDataToL2; //David May1 -- I think we need -- L2 awaits response, even though we will PUTX
     l_popRequestQueue;
 
 //David add
 	////a_sendAckNack;
-	d2_sendDataToL2;
+	a_multiplePUTX;
 	a_splitRCC;
 	//a_sendRCC_allocateToRequestor;
   }
@@ -1822,11 +1803,12 @@ State DavidgetRCCState(Addr addr){
 //David modified
   transition(M, {Fwd_GETS, Fwd_GET_INSTR}, S) {
     //d_sendDataToRequestor;
-    d2_sendDataToL2;
+    d2_sendDataToL2; //David May1 -- I think we need -- L2 awaits response, even though we will PUTX
     l_popRequestQueue;
 
 //David add
 	////a_sendAckNack;
+	a_multiplePUTX; //David May1 -- write back all dirty data so L2 is correct in Shared
 	setStateS;
   }
 
@@ -1847,7 +1829,7 @@ State DavidgetRCCState(Addr addr){
 
 //David add
 	////a_sendAckNack;
-	setStateSINK;
+	//setStateSINK; //David May1 -- I don't think that entire blocks should ever 
   }
 
   // Transitions from IS -- no longer want to remove if in IS, can still go to S later. Should split this into two transitions
@@ -1879,10 +1861,11 @@ State DavidgetRCCState(Addr addr){
     l_popRequestQueue;
   }
 
+
+
 //David modified
 /*CHECK* - Duplicate transition: IS|Data_all_Acks */
-  //transition(IS, RCC_allocate, S) {
- /* transition(IS, Data_all_Acks, S) {
+  transition(IS, Data_all_Acks, S) {
     u_writeDataToL1Cache;  //Nirvedh track 5
     hx_load_hit;
     s_deallocateTBE;
@@ -1890,14 +1873,24 @@ State DavidgetRCCState(Addr addr){
     kd_wakeUpDependents;
 
 	//added
+	//a_allocateRCC;
+	setStateS;
+  }
+
+
+/*CHECK* - Duplicate transition: IS|Data_all_Acks */
+  transition(IS, RCC_allocate, IS) {  //David Question TODO: Should I keep in IS until all acks are recieved? I think yes...
+    //u_writeDataToL1Cache; //David May1 -- have IS, Data_All_Acks do these steps
+    o_popIncomingResponseQueue;
+    //kd_wakeUpDependents;
+
 	a_allocateRCC;
 	setStateS;
-  }*/
+  }
 
 //David modified
 /*CHECK* - Duplicate transition: [PF_IS|Data_all_Acks */
-  //transition(PF_IS, RCC_allocate, S) {
-/*  transition(PF_IS, Data_all_Acks, S) {
+  transition(PF_IS, Data_all_Acks, S) {
     u_writeDataToL1Cache;
     s_deallocateTBE;
     mp_markPrefetched;
@@ -1905,67 +1898,18 @@ State DavidgetRCCState(Addr addr){
     kd_wakeUpDependents;
 	setStateS;
 
-	//David added
-	a_allocateRCC;
-  }*/
-
-/*CHECK* - Duplicate transition: [IS_I|Data_all_Acks */
-  //transition(IS_I, RCC_allocate, I) {
-/*  transition(IS_I, Data_all_Acks, I) {
-    u_writeDataToL1Cache;
-    hx_load_hit;
-    s_deallocateTBE;
-    o_popIncomingResponseQueue;
-    kd_wakeUpDependents;
-	setStateI;
-  }*/
-
-/*CHECK* - Duplicate transition: [PF_IS_I|Data_all_Acks */
-  //transition(PF_IS_I, RCC_allocate, I) {
- /* transition(PF_IS_I, Data_all_Acks, I) {
-    s_deallocateTBE;
-    o_popIncomingResponseQueue;
-    kd_wakeUpDependents;
-	setStateI;
-  }*/
-
-/*CHECK* - Duplicate transition: IS|Data_all_Acks */
-  //transition(IS, RCC_allocate, S) {
-  transition(IS, Data_all_Acks, S) {
-    u_writeDataToL1Cache;
-
-	//David add
-	a_allocateRCC; //Nirvedh Mdfy
-
-    j_sendUnblock;
-    hx_load_hit;
-    s_deallocateTBE;
-    o_popIncomingResponseQueue;
-    kd_wakeUpDependents;
-
-
-	setStateS;
   }
 
 /*CHECK* - Duplicate transition: [PF_IS|Data_all_Acks */
-  //transition(PF_IS, RCC_allocate, S) {
-  transition(PF_IS, Data_all_Acks, S) {
-    u_writeDataToL1Cache;
-
+  transition(PF_IS, RCC_allocate, PF_IS) {
 	//David add
 	a_allocateRCC; //Nirvedh Mdfy
-
-    j_sendUnblock;
-    s_deallocateTBE;
     o_popIncomingResponseQueue;
-    kd_wakeUpDependents;
-
-
-	setStateS;
+    //kd_wakeUpDependents;
+	setStatePF_IS;
   }
 
 /*CHECK* - Duplicate transition: [IS_I|Data_all_Acks */
-  //transition(IS_I, RCC_allocate, I) {
   transition(IS_I, Data_all_Acks, I) {
     u_writeDataToL1Cache;
     j_sendUnblock;
@@ -1976,14 +1920,32 @@ State DavidgetRCCState(Addr addr){
 	setStateI;
   }
 
+/*CHECK* - Duplicate transition: [IS_I|Data_all_Acks */
+    transition(IS_I, RCC_allocate, IS_I) {   //May1
+    o_popIncomingResponseQueue;
+    //kd_wakeUpDependents;
+	a_allocateRCC;	//David Question May1 -- do not allocate RCC if going to I anyways? Comment this out? 
+	setStateIS_I;
+  }
+
+
 /*CHECK* - Duplicate transition: [PF_IS_I|Data_all_Acks */
-  //transition(PF_IS_I, RCC_allocate, I) {
   transition(PF_IS_I, Data_all_Acks, I) {
     j_sendUnblock;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
 	setStateI;
+  }
+
+  /*CHECK* - Duplicate transition: [PF_IS_I|Data_all_Acks */
+  transition(PF_IS_I, RCC_allocate, PF_IS_I) {
+  //transition(PF_IS_I, Data_all_Acks, I) {
+    //s_deallocateTBE;
+    o_popIncomingResponseQueue;
+    //kd_wakeUpDependents;
+	a_allocateRCC;
+	setStatePF_IS_I;
   }
 
   // directory is blocked when sending exclusive data
@@ -2061,12 +2023,10 @@ State DavidgetRCCState(Addr addr){
 	setStatePF_SM;
   }
 
-//  transition(IM, RCC_allocate, M) {
+
   transition(IM, Data_all_Acks, M) {
     u_writeDataToL1Cache;
 
-	//David add
-	a_allocateRCC;  //Nirvedh mdfy (since I removed Davids allocate for  stores)
 
     hhx_store_hit;
     jj_sendExclusiveUnblock;
@@ -2078,19 +2038,30 @@ State DavidgetRCCState(Addr addr){
 	setStateM;
   }
 
-//  transition(PF_IM, RCC_allocate, M) {
+//David May1
+ transition(IM, RCC_allocate, IM) {
+	
+	o_popIncomingResponseQueue;
+	//David add
+	a_allocateRCC;  //Nirvedh mdfy (since I removed Davids allocate for  stores)
+	setStateIM;
+ }
+
+  transition(PF_IM, RCC_allocate, PF_IM) {
+    
+	o_popIncomingResponseQueue;
+	a_allocateRCC;
+	setStatePF_IM;
+  }
+
+
   transition(PF_IM, Data_all_Acks, M) {
     u_writeDataToL1Cache;
-
-	//David add
-	a_allocateRCC;  //Nirvedh mdfy (since I removed Davids allocate for  input req)
-
     jj_sendExclusiveUnblock;
     s_deallocateTBE;
     mp_markPrefetched;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
-
 
 	setStateM;
   }
