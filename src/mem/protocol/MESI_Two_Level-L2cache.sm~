@@ -25,12 +25,11 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/* Additions:
-isReady - ClockEdge()*/
 
 machine(L2Cache, "MESI Directory L2 Cache CMP")
- : RCTable * rcc;
+ : RCTable * rctable;
    CacheMemory * L2cache;
+   
    Cycles l2_request_latency := 2;
    Cycles l2_response_latency := 2;
    Cycles to_l1_latency := 1;
@@ -38,23 +37,23 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   // Message Queues
   // From local bank of L2 cache TO the network
   MessageBuffer * DirRequestFromL2Cache, network="To", virtual_network="0",
-    ordered="false", vnet_type="request";  // this L2 bank -> Memory
+    vnet_type="request";  // this L2 bank -> Memory
 
   MessageBuffer * L1RequestFromL2Cache, network="To", virtual_network="2",
-    ordered="false", vnet_type="request";  // this L2 bank -> a local L1
+    vnet_type="request";  // this L2 bank -> a local L1
 
   MessageBuffer * responseFromL2Cache, network="To", virtual_network="1",
-    ordered="false", vnet_type="response";  // this L2 bank -> a local L1 || Memory
+    vnet_type="response";  // this L2 bank -> a local L1 || Memory
 
   // FROM the network to this local bank of L2 cache
   MessageBuffer * unblockToL2Cache, network="From", virtual_network="2",
-    ordered="false", vnet_type="unblock";  // a local L1 || Memory -> this L2 bank
+    vnet_type="unblock";  // a local L1 || Memory -> this L2 bank
 
   MessageBuffer * L1RequestToL2Cache, network="From", virtual_network="0",
-    ordered="false", vnet_type="request";  // a local L1 -> this L2 bank
+    vnet_type="request";  // a local L1 -> this L2 bank
 
   MessageBuffer * responseToL2Cache, network="From", virtual_network="1",
-    ordered="false", vnet_type="response";  // a local L1 || Memory -> this L2 bank
+    vnet_type="response";  // a local L1 || Memory -> this L2 bank
 {
   // STATES
   state_declaration(State, desc="L2 Cache states", default="L2Cache_State_NP") {
@@ -84,9 +83,6 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     MT_IB, AccessPermission:Busy, desc="Blocked for L1_GETS from MT, got unblock, waiting for data";
     MT_SB, AccessPermission:Busy, desc="Blocked for L1_GETS from MT, got data,  waiting for unblock";
 
-    SS_MB_RCC, AccessPermission:Busy, desc="block is being accessed through RCC_GET";
-    MT_MB_RCC, AccessPermission:Busy, desc="block is being accessed through RCC_GET";
-
   }
 
   // EVENTS
@@ -95,9 +91,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
     // events initiated by the local L1s
     L1_GET_INSTR,            desc="a L1I GET INSTR request for a block maped to us";
-    L1_GET_INSTR_SPECIAL,    desc="a L1I GET INSTR request for a block it already holds permission in RCTable";
     L1_GETS,                 desc="a L1D GETS request for a block maped to us";
-    L1_GETS_SPECIAL,              desc="a L1D GETS request for a block it already holds permission in RCTable";
     L1_GETX,                 desc="a L1D GETX request for a block maped to us";
     L1_UPGRADE,                 desc="a L1D GETX request for a block maped to us";
 
@@ -122,11 +116,6 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     Exclusive_Unblock, desc="Unblock from L1 requestor";
 
     MEM_Inv, desc="Invalidation from directory";
-
-    RCC_Get, desc=""; //Ravali -- Adding missing event
-    RCC_Get_Miss, desc="RCC get request, but not in L2, must wait for data from Memory Controller";
-
-    Nack, desc="";
   }
 
   // TYPES
@@ -139,6 +128,7 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     DataBlock DataBlk,       desc="data for the block";
     bool Dirty, default="false", desc="data is dirty";
   }
+  
 
   // TBE fields
   structure(TBE, desc="...") {
@@ -160,29 +150,6 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
   }
 
   TBETable TBEs, template="<L2Cache_TBE>", constructor="m_number_of_TBEs";
-
- /*structure(RCTable, external="yes") {
-    //typedef RubyRCTableParams Params;
-    RCTable(const Params *p);
-    ~RCTable();
-    void init();
-    int test(int a) const;
-    
-    void allocate(Addr, int, int); //int state
-    void allocate_l2(Addr, MachineID); //int state=0); // *CHECK* state
-    int getRCCState(Addr);
-    void setRCCstate(Addr, int);//int state
-    int getGranularity(Addr);
-    Addr getMask(Addr);
-    NetDest getSharers(Addr);
-    void addSharer(Addr, MachineID); // The build files tend to use const MachineId& but our RubySlicc.sm does not support this
-    void removeSharer(Addr, MachineID);
-    void clearSharers(Addr);
-    void split(Addr);
-    void splitRCC_l2(Addr,MachineID); 
-    bool isPresent_RCC(Addr);
-  }
-  RCTable rcc;*/
 
   Tick clockEdge();
   Tick cyclesToTicks(Cycles c);
@@ -210,8 +177,8 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
 
   void addSharer(Addr addr, MachineID requestor, Entry cache_entry) {
     assert(is_valid(cache_entry));
-    //DPRINTF(RubySlicc, "machineID: %s, requestor: %s, address: %s\n",
-           // machineID, requestor, addr);
+    //DPRINTF(RubySlicc, "machineID: %s, requestor: %s, address: %#x\n",
+     //       machineID, requestor, addr);
     cache_entry.Sharers.add(requestor);
   }
 
@@ -235,53 +202,6 @@ machine(L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
-State DavidgetRCCState(Addr addr){
-	assert(rcc.isPresent_RCC(addr));
-	std::string str := (rcc.getRCCL2State(addr)); 
- if (str == "NP") {
-        return State:NP;
-    } else if (str == "SS") {
-        return State:SS;
-    } else if (str == "M") {
-        return State:M;
-    } else if (str == "MT") {
-        return State:MT;
-    } else if (str == "M_I") {
-        return State:M_I;
-    } else if (str == "MT_I") {
-        return State:MT_I;
-    } else if (str == "MCT_I") {
-        return State:MCT_I;
-    } else if (str == "I_I") {
-        return State:I_I;
-    } else if (str == "S_I") {
-        return State:S_I;
-    } else if (str == "ISS") {
-        return State:ISS;
-    } else if (str == "IS") {
-        return State:IS;
-    } else if (str == "IM") {
-        return State:IM;
-    } else if (str == "SS_MB") {
-        return State:SS_MB;
-    } else if (str == "MT_MB") {
-        return State:MT_MB;
-    } else if (str == "MT_IIB") {
-        return State:MT_IIB;
-    } else if (str == "MT_IB") {
-        return State:MT_IB;
-    } else if (str == "MT_SB") {
-        return State:MT_SB;
-    } else if (str == "SS_MB_RCC") {
-        return State:SS_MB_RCC;
-    } else if (str == "MT_MB_RCC") {
-        return State:MT_MB_RCC;
-    } else {
-       return State:NP;
-    }
-
-  }
-
   AccessPermission getAccessPermission(Addr addr) {
     TBE tbe := TBEs[addr];
     if(is_valid(tbe)) {
@@ -295,7 +215,7 @@ State DavidgetRCCState(Addr addr){
       return L2Cache_State_to_permission(cache_entry.CacheState);
     }
 
-   //DPRINTF(RubySlicc, "%s\n", AccessPermission:NotPresent);
+    //DPRINTF(RubySlicc, "%s\n", AccessPermission:NotPresent);
     return AccessPermission:NotPresent;
   }
 
@@ -331,11 +251,9 @@ State DavidgetRCCState(Addr addr){
 
   Event L1Cache_request_type_to_event(CoherenceRequestType type, Addr addr,
                                       MachineID requestor, Entry cache_entry) {
-    DPRINTF(RubySlicc,"then the request is in L2\n");
     if(type == CoherenceRequestType:GETS) {
       return Event:L1_GETS;
     } else if(type == CoherenceRequestType:GET_INSTR) {
-	DPRINTF(RubySlicc,"then the request is in GET_INSTR\n");
       return Event:L1_GET_INSTR;
     } else if (type == CoherenceRequestType:GETX) {
       return Event:L1_GETX;
@@ -351,15 +269,8 @@ State DavidgetRCCState(Addr addr){
       } else {
         return Event:L1_PUTX_old;
       }
-	} else if (type == CoherenceRequestType:RCC_GET) { //David add
-		if(is_valid(cache_entry)){		
-			return Event:RCC_Get;
-		}
-		else{
-			return Event:RCC_Get_Miss;
-		}
     } else {
-      //DPRINTF(RubySlicc, "address: %s, Request Type: %s\n", addr, type);
+      //DPRINTF(RubySlicc, "address: %#x, Request Type: %s\n", addr, type);
       error("Invalid L1 forwarded request type");
     }
   }
@@ -381,12 +292,12 @@ State DavidgetRCCState(Addr addr){
 
 
   in_port(L1unblockNetwork_in, ResponseMsg, unblockToL2Cache, rank = 2) {
-     if(L1unblockNetwork_in.isReady(clockEdge())) {
+    if(L1unblockNetwork_in.isReady(clockEdge())) {
       peek(L1unblockNetwork_in,  ResponseMsg) {
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
-        //DPRINTF(RubySlicc, "Addr: %s State: %s Sender: %s Type: %s Dest: %s\n",
-              //  in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
+        //DPRINTF(RubySlicc, "Addr: %#x State: %s Sender: %s Type: %s Dest: %s\n",
+               // in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
                 //in_msg.Sender, in_msg.Type, in_msg.Destination);
 
         assert(in_msg.Destination.isElement(machineID));
@@ -401,16 +312,9 @@ State DavidgetRCCState(Addr addr){
     }
   }
 
-/*
-************************************************************************************************************
-************************************************************************************************************
-******************************************************Responses to L2 $ requests **********************************
-************************************************************************************************************
-************************************************************************************************************
-*/
+  // Response  L2 Network - response msg to this particular L2 bank
   in_port(responseL2Network_in, ResponseMsg, responseToL2Cache, rank = 1) {
     if (responseL2Network_in.isReady(clockEdge())) {
-      DPRINTF(RubySlicc,"then the request is in L2");
       peek(responseL2Network_in, ResponseMsg) {
         // test wether it's from a local L1 or an off chip source
         assert(in_msg.Destination.isElement(machineID));
@@ -430,9 +334,7 @@ State DavidgetRCCState(Addr addr){
             } else {
               trigger(Event:Ack, in_msg.addr, cache_entry, tbe);
             }
-          } else if (in_msg.Type == CoherenceResponseType:NACK_RCC) { //David add
-				trigger(Event:Nack, in_msg.addr, cache_entry, tbe);
-		  }else {
+          } else {
             error("unknown message type");
           }
 
@@ -451,62 +353,31 @@ State DavidgetRCCState(Addr addr){
     }  // if not ready, do nothing
   }
 
-/*
-************************************************************************************************************
-************************************************************************************************************
-******************************************************Incoming from L1 $'s **********************************
-************************************************************************************************************
-************************************************************************************************************
-*/
+  // L1 Request
   in_port(L1RequestL2Network_in, RequestMsg, L1RequestToL2Cache, rank = 0) {
     if(L1RequestL2Network_in.isReady(clockEdge())) {
       peek(L1RequestL2Network_in,  RequestMsg) {
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
 
-        //DPRINTF(RubySlicc, "Addr: %s State: %s Req: %s Type: %s Dest: %s\n",
-                //in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
+        //DPRINTF(RubySlicc, "Addr: %#x State: %s Req: %s Type: %s Dest: %s\n",
+               // in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
                 //in_msg.Requestor, in_msg.Type, in_msg.Destination);
 
         assert(machineIDToMachineType(in_msg.Requestor) == MachineType:L1Cache);
         assert(in_msg.Destination.isElement(machineID));
 
-		//David add
-		bool cache_valid := is_valid(cache_entry);
-		//State orig_state := getState(tbe,cache_entry,in_msg.addr);
-		
-		
-	
-        //if (is_valid(cache_entry)) {
-		if((cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ //L2 has block, RCC permission good //Ravali
+        if (is_valid(cache_entry)) {
           // The L2 contains the block, so proceeded with handling the request
-         
-		setState(tbe,cache_entry,in_msg.addr,DavidgetRCCState(in_msg.addr)); // overwrite cache entry to what RCC is /*CHECK*/
-		 trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
+          trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
                                                 in_msg.Requestor, cache_entry),
                   in_msg.addr, cache_entry, tbe);
-			//David add
-		
-
-        } else { // not valid or RCC miss -- need to request memory to get valid data and add RCC entry
-			
+        } else {
           if (L2cache.cacheAvail(in_msg.addr)) {
-	    if(rcc.isPresent_RCC(in_msg.addr))
-	    {
-		if(in_msg.Type == CoherenceRequestType:GETS) {
-      			trigger(Event:L1_GETS_SPECIAL,in_msg.addr, cache_entry, tbe);
-    		} else if(in_msg.Type == CoherenceRequestType:GET_INSTR) {
-			DPRINTF(RubySlicc,"then the request is in GET_INSTR\n");
-      			trigger(Event:L1_GET_INSTR_SPECIAL,in_msg.addr, cache_entry, tbe);
-    	        }							//Nirvedh adding
-            }
-            else
-            {
             // L2 does't have the line, but we have space for it in the L2
             trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
                                                   in_msg.Requestor, cache_entry),
                     in_msg.addr, cache_entry, tbe);
-            }
           } else {
             // No room in the L2, so we need to make room before handling the request
             Entry L2cache_entry := getCacheEntry(L2cache.cacheProbe(in_msg.addr));
@@ -527,7 +398,6 @@ State DavidgetRCCState(Addr addr){
   // ACTIONS
 
   action(a_issueFetchToMemory, "a", desc="fetch data from memory") {
-		//DPRINTF(RubySlicc, "a_issueFetchToMemory");
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(DirRequestL2Network_out, RequestMsg, l2_request_latency) {
         out_msg.addr := address;
@@ -540,8 +410,6 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(b_forwardRequestToExclusive, "b", desc="Forward request to the exclusive L1") {
-
-//DPRINTF(RubySlicc, "b_forwardRequestToExclusive");
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
@@ -555,8 +423,6 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(c_exclusiveReplacement, "c", desc="Send data to memory") {
-
-//DPRINTF(RubySlicc, "c_exclusiveReplacement");
     enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
       assert(is_valid(cache_entry));
       out_msg.addr := address;
@@ -596,10 +462,8 @@ State DavidgetRCCState(Addr addr){
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
-	assert(rcc.isPresent_RCC(address));
         out_msg.addr := address;
-        //out_msg.Type := CoherenceResponseType:DATA;
-	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE;
+        out_msg.Type := CoherenceResponseType:DATA;
         out_msg.Sender := machineID;
         out_msg.Destination.add(in_msg.Requestor);
         out_msg.DataBlk := cache_entry.DataBlk;
@@ -609,10 +473,6 @@ State DavidgetRCCState(Addr addr){
         if (cache_entry.Sharers.isElement(in_msg.Requestor)) {
           out_msg.AckCount := out_msg.AckCount + 1;
         }
-
-//David add
-	  out_msg.granularity 	:= 		rcc.getGranularity(address);
-	  out_msg.mask			:= 		rcc.getMask(address);
       }
     }
   }
@@ -621,10 +481,8 @@ State DavidgetRCCState(Addr addr){
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
-	assert(rcc.isPresent_RCC(address));
         out_msg.addr := address;
-        //out_msg.Type := CoherenceResponseType:DATA_EXCLUSIVE;
-	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE_EXCLUSIVE;
+        out_msg.Type := CoherenceResponseType:DATA_EXCLUSIVE;
         out_msg.Sender := machineID;
         out_msg.Destination.add(in_msg.Requestor);
         out_msg.DataBlk := cache_entry.DataBlk;
@@ -634,11 +492,7 @@ State DavidgetRCCState(Addr addr){
         if (cache_entry.Sharers.isElement(in_msg.Requestor)) {
           out_msg.AckCount := out_msg.AckCount + 1;
         }
-      
-//David add
-	  out_msg.granularity 	:= 		rcc.getGranularity(address);
-	  out_msg.mask			:= 		rcc.getMask(address);
-	  }
+      }
     }
   }
 
@@ -646,40 +500,28 @@ State DavidgetRCCState(Addr addr){
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
-	assert(rcc.isPresent_RCC(address));
         out_msg.addr := address;
-        //out_msg.Type := CoherenceResponseType:DATA;
-	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE;
+        out_msg.Type := CoherenceResponseType:DATA;
         out_msg.Sender := machineID;
         out_msg.Destination.add(in_msg.Requestor);
         out_msg.DataBlk := cache_entry.DataBlk;
         out_msg.MessageSize := MessageSizeType:Response_Data;
         out_msg.AckCount := 0;
-
-//David add
-	  out_msg.granularity 	:= 		rcc.getGranularity(address);
-	  out_msg.mask			:= 		rcc.getMask(address);
       }
     }
   }
 
   action(e_sendDataToGetSRequestors, "e", desc="Send data from cache to all GetS IDs") {
     assert(is_valid(tbe));
-	assert(rcc.isPresent_RCC(address));
     assert(tbe.L1_GetS_IDs.count() > 0);
     enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
       assert(is_valid(cache_entry));
       out_msg.addr := address;
-      //out_msg.Type := CoherenceResponseType:DATA;
-	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE; //David May1
+      out_msg.Type := CoherenceResponseType:DATA;
       out_msg.Sender := machineID;
       out_msg.Destination := tbe.L1_GetS_IDs;  // internal nodes
       out_msg.DataBlk := cache_entry.DataBlk;
       out_msg.MessageSize := MessageSizeType:Response_Data;
-
-//David add
-	  out_msg.granularity 	:= 		rcc.getGranularity(address);
-	  out_msg.mask			:= 		rcc.getMask(address);
     }
   }
 
@@ -688,122 +530,51 @@ State DavidgetRCCState(Addr addr){
     assert(tbe.L1_GetS_IDs.count() == 1);
     enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
       assert(is_valid(cache_entry));
-	assert(rcc.isPresent_RCC(address));
       out_msg.addr := address;
-      //out_msg.Type := CoherenceResponseType:DATA_EXCLUSIVE;
-	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE_EXCLUSIVE; //David May1
+      out_msg.Type := CoherenceResponseType:DATA_EXCLUSIVE;
       out_msg.Sender := machineID;
       out_msg.Destination := tbe.L1_GetS_IDs;  // internal nodes
       out_msg.DataBlk := cache_entry.DataBlk;
       out_msg.MessageSize := MessageSizeType:Response_Data;
-
-
-//David add
-	  out_msg.granularity 	:= 		rcc.getGranularity(address);
-	  out_msg.mask			:= 		rcc.getMask(address);
     }
   }
-
-//David add
-  action(a_sendDataToRCC_GetRequestor, "aRCCG", desc="Send datat to L1 RCC_GET requestor") {
-     
-	if(is_valid(cache_entry)){ // L2 already has data, go ahead and send
-
-	    enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
-	      assert(is_valid(tbe));
-	      assert(is_valid(cache_entry));
-		assert(rcc.isPresent_RCC(address));
-	      out_msg.addr := address;
-	      out_msg.Type := CoherenceResponseType:DATA;
-	      out_msg.Sender := machineID;
-	      out_msg.Destination.add(tbe.L1_GetX_ID);
-	      //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
-	      out_msg.DataBlk := cache_entry.DataBlk;
-	      //DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
-		//out_msg.addr, out_msg.Destination, out_msg.DataBlk);
-	        out_msg.MessageSize := MessageSizeType:Response_Data;
-		out_msg.granularity 	:= 		rcc.getGranularity(address);
-		out_msg.mask			:= 		rcc.getMask(address);
-	    }
-	}
-	
-		
-}
-
-  action(a_sendDataToRCC_GetHITRequestor, "aRCCGh", desc="Send datat to L1 RCC_GET requestor") {
-     
-	if(is_valid(cache_entry)){ // L2 already has data, go ahead and send
-
-	    enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
-	      //assert(is_valid(tbe));
-	      assert(is_valid(cache_entry));
-		assert(rcc.isPresent_RCC(address));
-	      out_msg.addr := address;
-	      out_msg.Type := CoherenceResponseType:DATA;
-	      out_msg.Sender := machineID;
-	      out_msg.Destination.add(tbe.L1_GetX_ID);
-	      //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
-	      out_msg.DataBlk := cache_entry.DataBlk;
-	      //DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
-		//out_msg.addr, out_msg.Destination, out_msg.DataBlk);
-	        out_msg.MessageSize := MessageSizeType:Response_Data;
-		out_msg.granularity 	:= 		rcc.getGranularity(address);
-		out_msg.mask			:= 		rcc.getMask(address);
-	    }
-	}
-	
-		
-}
 
   action(ee_sendDataToGetXRequestor, "ee", desc="Send data from cache to GetX ID") {
     enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
       assert(is_valid(tbe));
       assert(is_valid(cache_entry));
-	assert(rcc.isPresent_RCC(address));
       out_msg.addr := address;
-      //out_msg.Type := CoherenceResponseType:DATA;
-	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE; //David May1
+      out_msg.Type := CoherenceResponseType:DATA;
       out_msg.Sender := machineID;
       out_msg.Destination.add(tbe.L1_GetX_ID);
       //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
+      DPRINTF(RubySlicc, "%d\n", rctable.test(2));
       out_msg.DataBlk := cache_entry.DataBlk;
-      //DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
-            //  out_msg.addr, out_msg.Destination, out_msg.DataBlk);
+      //DPRINTF(RubySlicc, "Address: %#x, Destination: %s, DataBlock: %s\n",
+              //out_msg.addr, out_msg.Destination, out_msg.DataBlk);
       out_msg.MessageSize := MessageSizeType:Response_Data;
-
-
-//David add
-	  out_msg.granularity 	:= 		rcc.getGranularity(address);
-	  out_msg.mask			:= 		rcc.getMask(address);
     }
   }
 
   action(f_sendInvToSharers, "f", desc="invalidate sharers for L2 replacement") {
     enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
       assert(is_valid(cache_entry));
-      assert(rcc.isPresent_RCC(address));
       out_msg.addr := address;
       out_msg.Type := CoherenceRequestType:INV;
       out_msg.Requestor := machineID;
-      //out_msg.Destination := cache_entry.Sharers;
-//David modify
-	  out_msg.Destination := rcc.getSharers(address); //CHECK address
+      out_msg.Destination := cache_entry.Sharers;
       out_msg.MessageSize := MessageSizeType:Request_Control;
     }
   }
-
 
   action(fw_sendFwdInvToSharers, "fw", desc="invalidate sharers for request") {
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
-	assert(rcc.isPresent_RCC(address));
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:INV;
         out_msg.Requestor := in_msg.Requestor;
-        //out_msg.Destination := cache_entry.Sharers;
-		//David modify
-		out_msg.Destination := rcc.getSharers(in_msg.addr);
+        out_msg.Destination := cache_entry.Sharers;
         out_msg.MessageSize := MessageSizeType:Request_Control;
       }
     }
@@ -813,13 +584,10 @@ State DavidgetRCCState(Addr addr){
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
-	assert(rcc.isPresent_RCC(address));
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:INV;
         out_msg.Requestor := in_msg.Requestor;
-        //out_msg.Destination := cache_entry.Sharers;
-		//David modify
-		out_msg.Destination := rcc.getSharers(in_msg.addr);
+        out_msg.Destination := cache_entry.Sharers;
         out_msg.Destination.remove(in_msg.Requestor);
         out_msg.MessageSize := MessageSizeType:Request_Control;
       }
@@ -843,17 +611,19 @@ State DavidgetRCCState(Addr addr){
     unset_tbe();
   }
 
-  action(jj_popL1RequestQueue, "\j", desc="Pop incoming L1 request queue") { //Nirvedh Track 2
-    DPRINTF(RubySlicc,"This message got successfully popped\n");
-    profileMsgDelay(0, ticksToCycles(L1RequestL2Network_in.dequeue(clockEdge())));
+  action(jj_popL1RequestQueue, "\j", desc="Pop incoming L1 request queue") {
+    Tick delay := L1RequestL2Network_in.dequeue(clockEdge());
+    profileMsgDelay(0, ticksToCycles(delay));
   }
 
   action(k_popUnblockQueue, "k", desc="Pop incoming unblock queue") {
-    profileMsgDelay(0, ticksToCycles(L1unblockNetwork_in.dequeue(clockEdge())));
+    Tick delay := L1unblockNetwork_in.dequeue(clockEdge());
+    profileMsgDelay(0, ticksToCycles(delay));
   }
 
   action(o_popIncomingResponseQueue, "o", desc="Pop Incoming Response queue") {
-    profileMsgDelay(1, ticksToCycles(responseL2Network_in.dequeue(clockEdge())));
+    Tick delay := responseL2Network_in.dequeue(clockEdge());
+    profileMsgDelay(1, ticksToCycles(delay));
   }
 
   action(m_writeDataToCache, "m", desc="Write data from response queue to cache") {
@@ -869,8 +639,8 @@ State DavidgetRCCState(Addr addr){
   action(mr_writeDataToCacheFromRequest, "mr", desc="Write data from response queue to cache") {
     peek(L1RequestL2Network_in, RequestMsg) {
       assert(is_valid(cache_entry));
-      cache_entry.DataBlk := in_msg.DataBlk;
       if (in_msg.Dirty) {
+        cache_entry.DataBlk := in_msg.DataBlk;
         cache_entry.Dirty := in_msg.Dirty;
       }
     }
@@ -960,86 +730,35 @@ State DavidgetRCCState(Addr addr){
 
   action(nn_addSharer, "\n", desc="Add L1 sharer to list") {
     peek(L1RequestL2Network_in, RequestMsg) {
-	DPRINTF(RubySlicc,"start add RCC sharer\n");
-			//David add
-	  assert(rcc.isPresent_RCC(address)); //Ravali
-	  rcc.addSharer(address, in_msg.Requestor);	
-	DPRINTF(RubySlicc,"done add RCC sharer\n");
-
       assert(is_valid(cache_entry));
       addSharer(address, in_msg.Requestor, cache_entry);
-	
       APPEND_TRANSITION_COMMENT( cache_entry.Sharers );
     }
   }
 
-
-//////////////////nirvedh adding special/////////////////////////////
-  action(nn_addSharer_special, "\sp", desc="Add L1 sharer to list") {
-    peek(L1RequestL2Network_in, RequestMsg) {
-			//David add
-	  assert(rcc.isPresent_RCC(address)); //Ravali
-	  rcc.addSharer(address, in_msg.Requestor);
-	DPRINTF(RubySlicc,"done add RCC special sharer\n");
-	cache_entry.Sharers := rcc.getSharers(address);
-      assert(is_valid(cache_entry));
-      addSharer(address, in_msg.Requestor, cache_entry);
-	
-      APPEND_TRANSITION_COMMENT( cache_entry.Sharers );
-    }
-  }
-
-//////////////////////////////////////////////////////////////////////
-
-  action(nnu_addSharerFromUnblock, "\u", desc="Add L1 sharer to list") {
+  action(nnu_addSharerFromUnblock, "\nu", desc="Add L1 sharer to list") {
     peek(L1unblockNetwork_in, ResponseMsg) {
-
-//David add
-	  assert(rcc.isPresent_RCC(address));
-	  rcc.addSharer(address, in_msg.Sender); /*CHECK*/
-	  //rcc.addSharer(address, in_msg.Requestor);
-
       assert(is_valid(cache_entry));
       addSharer(address, in_msg.Sender, cache_entry);
-
     }
   }
 
   action(kk_removeRequestSharer, "\k", desc="Remove L1 Request sharer from list") {
     peek(L1RequestL2Network_in, RequestMsg) {
-//David add
-	  assert(rcc.isPresent_RCC(address)); //Ravali
-	  rcc.removeSharer(address, in_msg.Requestor);
-
-
       assert(is_valid(cache_entry));
       cache_entry.Sharers.remove(in_msg.Requestor);
-
     }
   }
 
   action(ll_clearSharers, "\l", desc="Remove all L1 sharers from list") {
     peek(L1RequestL2Network_in, RequestMsg) {
-//David add
-	   DPRINTF(RubySlicc,"start clear RCC sharers\n");
-	  assert(rcc.isPresent_RCC(address));
-		   DPRINTF(RubySlicc,"assert done. about to enter Function\n");
-	  rcc.clearSharers(address);
-	  DPRINTF(RubySlicc,"done clear RCC sharers\n");
-
       assert(is_valid(cache_entry));
       cache_entry.Sharers.clear();
-
     }
   }
 
   action(mm_markExclusive, "\m", desc="set the exclusive owner") {
     peek(L1RequestL2Network_in, RequestMsg) {
-//David add
-	  assert(rcc.isPresent_RCC(address)); //Ravali
-	  rcc.clearSharers(address);
-	  rcc.addSharer(address, in_msg.Requestor);
-
       assert(is_valid(cache_entry));
       cache_entry.Sharers.clear();
       cache_entry.Exclusive := in_msg.Requestor;
@@ -1061,169 +780,12 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(zn_recycleResponseNetwork, "zn", desc="recycle memory request") {
-    responseL2Network_in.recycle(clockEdge(), cyclesToTicks(recycle_latency)); /*CHECK*/
+    responseL2Network_in.recycle(clockEdge(), cyclesToTicks(recycle_latency));
   }
 
   action(kd_wakeUpDependents, "kd", desc="wake-up dependents") {
     wakeUpBuffers(address);
   }
-
-//David add actions
-
-/*
-//David Question: still need to know exclusive or not -- can't simply send RCC_allocate. Maybe just always forward the RCC info during a data response?
-  action(a_sendRCC_allocate_to_GETXRequestor, "RCCa_x", desc="Send RCC entry & data to GetX ID") {
-    enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
-      assert(is_valid(tbe));
-      assert(is_valid(cache_entry));
-      out_msg.Addr := address;
-      out_msg.Type := CoherenceResponseType:RCC_allocate;
-      out_msg.Sender := machineID;
-      out_msg.Destination.add(tbe.L1_GetX_ID);
-      //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
-      out_msg.DataBlk := cache_entry.DataBlk;
-      //DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
-              out_msg.Addr, out_msg.Destination, out_msg.DataBlk);
-      out_msg.MessageSize := MessageSizeType:Response_Data;
-	 	out_msg.granularity := rcc.getGranularity(address);
-		out_msg.mask		:= rcc.getMask(address);
-    }
-  }
-
-  action(ex_sendExclusiveDataToGetSRequestors, "RCCa_s", desc="Send data from cache to all GetS IDs") {
-    assert(is_valid(tbe));
-    assert(tbe.L1_GetS_IDs.count() == 1);
-    enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
-      assert(is_valid(cache_entry));
-      out_msg.Addr := address;
-      out_msg.Type := CoherenceResponseType:DATA_EXCLUSIVE;
-      out_msg.Sender := machineID;
-      out_msg.Destination := tbe.L1_GetS_IDs;  // internal nodes
-      out_msg.DataBlk := cache_entry.DataBlk;
-      out_msg.MessageSize := MessageSizeType:Response_Data;
-    }
-  }
-*/
-
- /* *CHECK* -- setRCCstate */
-  action(setStateNP,"ssNP", desc="set RCC to NP"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:NP));
-  }
-
-  action(setStateSS,"ssSS", desc="set RCC to SS"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:SS));
-  }
-
-  action(setStateM,"ssM", desc="set RCC to M"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:M));
-  }
-
-  action(setStateMT,"ssMT", desc="set RCC to MT"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:MT));
-  }
-
-  action(setStateM_I,"ssM_I", desc="set RCC to M_I"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:M_I));
-  }
-
-  action(setStateMT_I,"ssMT_I", desc="set RCC to MT_I"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:MT_I));
-  }
-
-  action(setStateMCT_I,"ssMCT_I", desc="set RCC to MCT_I"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:MCT_I));
-  }
-
-  action(setStateI_I,"ssI_I", desc="set RCC to I_I"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:I_I));
-  }
-
-  action(setStateS_I,"ssS_I", desc="set RCC to S_I"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:S_I));
-  }
-
-  action(setStateISS,"ssISS", desc="set RCC to ISS"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:ISS));
-  }
-
-  action(setStateIS,"IS", desc="set RCC to IS"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:IS));
-  }
-
-  action(setStateIM,"IM", desc="set RCC to IM"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:IM));
-  }
-
-  action(setStateSS_MB,"ssSS_MB", desc="set RCC to SS_MB"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:SS_MB));
-  }
-
-  action(setStateMT_MB,"ssMT_MB", desc="set RCC to MT_MB"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:MT_MB));
-  }
-
-  action(setStateMT_IIB,"ssMT_IIB", desc="set RCC to MT_IIB"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:MT_IIB));
-  }
-
-  action(setStateMT_IB,"ssMT_IB", desc="set RCC to MT_IB"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:MT_IB));
-  }
-
-  action(setStateMT_SB,"ssMT_SB", desc="set RCC to MT_SB"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:MT_SB));
-  }
-
- action(setStateMT_MB_RCC,"ssMT_MB_RCC", desc="set RCC to MT_MB_RCC"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:MT_MB_RCC));
-  }
-
- action(setStateSS_MB_RCC,"ssSS_MB_RCC", desc="set RCC to SS_MB_RCC"){
-	assert(rcc.isPresent_RCC(address));
-	rcc.setRCCL2State(address,L2Cache_State_to_string(State:MT_MB_RCC));
-  }
-
-  action(a_l2splitRCC, "sRCC_l2", desc="Split RCC into 2 entries, update sharers accordingly") {
-	//peek(responseL2Network_in, ResponseMsg) { // *CHECK* responseL1Network_in --> responseL2Network_in?	
-	peek(L1RequestL2Network_in, RequestMsg) {	
-      		if(!rcc.isPresent_RCC(in_msg.addr)){  //Ravali
-			rcc.splitRCC_l2(in_msg.addr,in_msg.Requestor); // *CHECK* Requestor --> Sender?
-		}
-	}
-  }
-
-  action(a_l2allocateRCC, "aRCC_l2", desc="allocate RCC entry to L2") {
-//peek(responseL2Network_in, ResponseMsg) { // old code, mostly a bug
-	DPRINTF(RubySlicc,"before peeking\n");
-	peek(L1RequestL2Network_in, RequestMsg) { //// *CHECK* responseL1Network_in --> responseL2Network_in? //nirvedh track 3
-		DPRINTF(RubySlicc,"This message is being peeked\n");
-		if(!rcc.isPresent_RCC(in_msg.addr)){ //   Nirvedh mdfy this used to be a assert but it has to be a if statement
-			DPRINTF(RubySlicc,"Allocating L2 RCC\n");
-			rcc.allocate_l2(in_msg.addr,in_msg.Requestor); // Nirvedh mdfy, this was commented
-		}
-		DPRINTF(RubySlicc,"Done Allocating L2 RCC\n");	
-	}
-  }
-
-  
 
   //*****************************************************
   // TRANSITIONS
@@ -1244,7 +806,7 @@ State DavidgetRCCState(Addr addr){
     jj_popL1RequestQueue;
   }
 
-  transition({IM, IS, ISS, SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB,MT_MB_RCC, SS_MB_RCC}, {L2_Replacement, L2_Replacement_clean}) {
+  transition({IM, IS, ISS, SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB}, {L2_Replacement, L2_Replacement_clean}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
@@ -1257,16 +819,13 @@ State DavidgetRCCState(Addr addr){
   }
 
 
-  transition({SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB, MT_MB_RCC, SS_MB_RCC}, {RCC_Get,RCC_Get_Miss,L1_GETS, L1_GET_INSTR, L1_GETX, L1_UPGRADE}) {
+  transition({SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB}, {L1_GETS, L1_GET_INSTR, L1_GETX, L1_UPGRADE}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
 
   transition(NP, L1_GETS,  ISS) {
     qq_allocateL2CacheBlock;
-	//David add
-
-	a_l2allocateRCC;	
     ll_clearSharers;
     nn_addSharer;
     i_allocateTBE;
@@ -1274,17 +833,10 @@ State DavidgetRCCState(Addr addr){
     a_issueFetchToMemory;
     uu_profileMiss;
     jj_popL1RequestQueue;
-
-
-	setStateISS;
   }
 
   transition(NP, L1_GET_INSTR, IS) {
     qq_allocateL2CacheBlock;
-
-//David add
-	a_l2allocateRCC; //Nirvedh track 1
-
     ll_clearSharers;
     nn_addSharer;
     i_allocateTBE;
@@ -1292,57 +844,10 @@ State DavidgetRCCState(Addr addr){
     a_issueFetchToMemory;
     uu_profileMiss;
     jj_popL1RequestQueue;
-
-	
-	setStateIS;
   }
-
-
-/////////////////Nirvedh adding for special transitions ///////////////////////////////////////
-
-  transition(NP, L1_GETS_SPECIAL,  ISS) {
-    qq_allocateL2CacheBlock;
-	//David add
-
-	a_l2allocateRCC;	
-    nn_addSharer_special;
-    i_allocateTBE;
-    ss_recordGetSL1ID;
-    a_issueFetchToMemory;
-    uu_profileMiss;
-    jj_popL1RequestQueue;
-
-
-	//setStateISS;
-  }
-
-  transition(NP, L1_GET_INSTR_SPECIAL, IS) {
-    qq_allocateL2CacheBlock;
-
-//David add
-	a_l2allocateRCC; //Nirvedh track 1
-
-    ll_clearSharers;
-    nn_addSharer_special;
-    i_allocateTBE;
-    ss_recordGetSL1ID;
-    a_issueFetchToMemory;
-    uu_profileMiss;
-    jj_popL1RequestQueue;
-
-	
-	//setStateIS;
-  }
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////
 
   transition(NP, L1_GETX, IM) {
     qq_allocateL2CacheBlock;
-
-	//David add
-	a_l2allocateRCC;
-
     ll_clearSharers;
     // nn_addSharer;
     i_allocateTBE;
@@ -1350,9 +855,6 @@ State DavidgetRCCState(Addr addr){
     a_issueFetchToMemory;
     uu_profileMiss;
     jj_popL1RequestQueue;
-
-
-	setStateIM;
   }
 
 
@@ -1363,8 +865,6 @@ State DavidgetRCCState(Addr addr){
     ex_sendExclusiveDataToGetSRequestors;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
-
-	setStateMT_MB;
   }
 
   transition(IS, Mem_Data, SS) {
@@ -1373,8 +873,6 @@ State DavidgetRCCState(Addr addr){
     s_deallocateTBE;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
-
-	setStateSS;
   }
 
   transition(IM, Mem_Data, MT_MB) {
@@ -1382,8 +880,6 @@ State DavidgetRCCState(Addr addr){
     ee_sendDataToGetXRequestor;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
-
-	setStateMT_MB;
   }
 
   transition({IS, ISS}, {L1_GETS, L1_GET_INSTR}, IS) {
@@ -1391,15 +887,13 @@ State DavidgetRCCState(Addr addr){
     ss_recordGetSL1ID;
     uu_profileMiss;
     jj_popL1RequestQueue;
-
-	setStateIS;
   }
 
-  transition({IS, ISS}, {L1_GETX, RCC_Get}) {
+  transition({IS, ISS}, L1_GETX) {
     zz_stallAndWaitL1RequestQueue;
   }
 
-  transition(IM, {L1_GETX, L1_GETS, L1_GET_INSTR, RCC_Get}) {
+  transition(IM, {L1_GETX, L1_GETS, L1_GET_INSTR}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
@@ -1412,29 +906,14 @@ State DavidgetRCCState(Addr addr){
     jj_popL1RequestQueue;
   }
 
-//David add transition
-  transition(SS, RCC_Get) {
-    //ds_sendSharedDataToRequestor; //David May1
-    //a_sendDataToRCC_GetRequestor; //David PM 7:00
-    a_sendDataToRCC_GetHITRequestor;
-    //nn_addSharer; -- already a sharer if used the rcc get
-    set_setMRU;
-    uu_profileHit;
-    jj_popL1RequestQueue;
-  }
-
 
   transition(SS, L1_GETX, SS_MB) {
     d_sendDataToRequestor;
-    // fw_sendFwdInvToSharers; //David May1
+    // fw_sendFwdInvToSharers;
     fwm_sendFwdInvToSharersMinusRequestor;
     set_setMRU;
     uu_profileHit;
     jj_popL1RequestQueue;
-
-//David add
-	a_l2splitRCC;
-	setStateSS_MB;
   }
 
   transition(SS, L1_UPGRADE, SS_MB) {
@@ -1443,69 +922,18 @@ State DavidgetRCCState(Addr addr){
     set_setMRU;
     uu_profileHit;
     jj_popL1RequestQueue;
-
-	a_l2splitRCC;
-	setStateSS_MB;
   }
 
   transition(SS, L2_Replacement_clean, I_I) {
     i_allocateTBE;
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
-
-	setStateI_I;
   }
 
   transition(SS, {L2_Replacement, MEM_Inv}, S_I) {
     i_allocateTBE;
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
-
-	setStateS_I;
-  }
-
-  transition(SS, RCC_Get_Miss, SS_MB_RCC){
-    qq_allocateL2CacheBlock;
-    i_allocateTBE;
-    ss_recordGetSL1ID;
-    a_issueFetchToMemory;
-    uu_profileMiss;
-    jj_popL1RequestQueue;
-
-    setStateSS_MB_RCC;
-}
-
-  transition(SS_MB_RCC,Mem_Data,SS){
-    m_writeDataToCache;
-    //e_sendDataToGetSRequestors; //David May1
-    a_sendDataToRCC_GetRequestor;
-    s_deallocateTBE;
-    o_popIncomingResponseQueue;
-    kd_wakeUpDependents;
-
-    setStateSS;
-}
-
-  transition(MT, RCC_Get_Miss, MT_MB_RCC){
-    qq_allocateL2CacheBlock;
-    i_allocateTBE;
-    ss_recordGetSL1ID;
-    a_issueFetchToMemory;
-    uu_profileMiss;
-    jj_popL1RequestQueue;
-
-    setStateMT_MB_RCC;
-  }
-
-  transition(MT_MB_RCC,Mem_Data,MT){
-    m_writeDataToCache;
-    //e_sendDataToGetSRequestors; //David May1
-    a_sendDataToRCC_GetRequestor;
-    s_deallocateTBE;
-    o_popIncomingResponseQueue;
-    kd_wakeUpDependents;
-
-    setStateMT;
   }
 
 
@@ -1514,10 +942,6 @@ State DavidgetRCCState(Addr addr){
     set_setMRU;
     uu_profileHit;
     jj_popL1RequestQueue;
-
-// David add
-	a_l2splitRCC;
-	setStateMT_MB;
   }
 
   transition(M, L1_GET_INSTR, SS) {
@@ -1526,8 +950,6 @@ State DavidgetRCCState(Addr addr){
     set_setMRU;
     uu_profileHit;
     jj_popL1RequestQueue;
-
-	setStateSS;
   }
 
   transition(M, L1_GETS, MT_MB) {
@@ -1535,24 +957,18 @@ State DavidgetRCCState(Addr addr){
     set_setMRU;
     uu_profileHit;
     jj_popL1RequestQueue;
-
-	setStateMT_MB;
   }
 
   transition(M, {L2_Replacement, MEM_Inv}, M_I) {
     i_allocateTBE;
     c_exclusiveReplacement;
     rr_deallocateL2CacheBlock;
-
-	setStateM_I;
   }
 
   transition(M, L2_Replacement_clean, M_I) {
     i_allocateTBE;
     c_exclusiveCleanReplacement;
     rr_deallocateL2CacheBlock;
-
-	setStateM_I;
   }
 
 
@@ -1563,42 +979,26 @@ State DavidgetRCCState(Addr addr){
     uu_profileMiss;
     set_setMRU;
     jj_popL1RequestQueue;
-
-//David add
-	a_l2splitRCC;
-	setStateMT_MB;
   }
 
-  transition(MT, RCC_Get){ // David add transition -- same as MT with GETS request, but no state transition
- 	b_forwardRequestToExclusive;
-	uu_profileMiss;
-	set_setMRU;
-	jj_popL1RequestQueue;
-  }
 
   transition(MT, {L1_GETS, L1_GET_INSTR}, MT_IIB) {
     b_forwardRequestToExclusive;
     uu_profileMiss;
     set_setMRU;
     jj_popL1RequestQueue;
-
-	setStateMT_IIB;
   }
 
   transition(MT, {L2_Replacement, MEM_Inv}, MT_I) {
     i_allocateTBE;
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
-
-	setStateMT_I;
   }
 
   transition(MT, L2_Replacement_clean, MCT_I) {
     i_allocateTBE;
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
-
-	setStateMCT_I;
   }
 
   transition(MT, L1_PUTX, M) {
@@ -1606,8 +1006,6 @@ State DavidgetRCCState(Addr addr){
     mr_writeDataToCacheFromRequest;
     t_sendWBAck;
     jj_popL1RequestQueue;
-
-	setStateM;
   }
 
   transition({SS_MB,MT_MB}, Exclusive_Unblock, MT) {
@@ -1615,8 +1013,6 @@ State DavidgetRCCState(Addr addr){
     mmu_markExclusiveFromUnblock;
     k_popUnblockQueue;
     kd_wakeUpDependents;
-
-	setStateMT;
   }
 
   transition(MT_IIB, {L1_PUTX, L1_PUTX_old}){
@@ -1626,31 +1022,23 @@ State DavidgetRCCState(Addr addr){
   transition(MT_IIB, Unblock, MT_IB) {
     nnu_addSharerFromUnblock;
     k_popUnblockQueue;
-
-	setStateMT_IB;
   }
 
   transition(MT_IIB, {WB_Data, WB_Data_clean}, MT_SB) {
     m_writeDataToCache;
     o_popIncomingResponseQueue;
-
-	setStateMT_SB;
   }
 
   transition(MT_IB, {WB_Data, WB_Data_clean}, SS) {
     m_writeDataToCache;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
-
-	setStateSS;
   }
 
   transition(MT_SB, Unblock, SS) {
     nnu_addSharerFromUnblock;
     k_popUnblockQueue;
     kd_wakeUpDependents;
-
-	setStateSS;
   }
 
   // writeback states
@@ -1666,23 +1054,17 @@ State DavidgetRCCState(Addr addr){
   transition(I_I, Ack_all, M_I) {
     c_exclusiveCleanReplacement;
     o_popIncomingResponseQueue;
-
-	setStateM_I;
   }
 
   transition({MT_I, MCT_I}, WB_Data, M_I) {
     qq_writeDataToTBE;
     ct_exclusiveReplacementFromTBE;
     o_popIncomingResponseQueue;
-
-	setStateM_I;
   }
 
   transition(MCT_I, {WB_Data_clean, Ack_all}, M_I) {
     c_exclusiveCleanReplacement;
     o_popIncomingResponseQueue;
-
-	setStateM_I;
   }
 
   transition(MCT_I,  {L1_PUTX, L1_PUTX_old}){
@@ -1693,8 +1075,6 @@ State DavidgetRCCState(Addr addr){
   transition(MT_I, {WB_Data_clean, Ack_all}, M_I) {
     ct_exclusiveReplacementFromTBE;
     o_popIncomingResponseQueue;
-
-	setStateM_I;
   }
 
   transition(MT_I, {L1_PUTX, L1_PUTX_old}){
@@ -1714,15 +1094,11 @@ State DavidgetRCCState(Addr addr){
   transition(S_I, Ack_all, M_I) {
     ct_exclusiveReplacementFromTBE;
     o_popIncomingResponseQueue;
-
-	setStateM_I;
   }
 
   transition(M_I, Mem_Ack, NP) {
     s_deallocateTBE;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
-
-	setStateNP;
   }
 }

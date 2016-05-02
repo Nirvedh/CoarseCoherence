@@ -49,7 +49,8 @@ enumeration(CoherenceRequestType, desc="...") {
 enumeration(CoherenceResponseType, desc="...") {
   MEMORY_ACK, desc="Ack from memory controller";
   DATA, desc="Data block for L1 cache in S state";
-  DATA_EXCLUSIVE, desc="Data block for L1 cache in M/E state";
+  //DATA_EXCLUSIVE, desc="Data block for L1 cache in M/E state";
+  RCC_ALLOCATE_EXCLUSIVE, desc="Data block for L1 cache in M/E state";
   MEMORY_DATA, desc="Data block from / to main memory";
   ACK, desc="Generic invalidate ack";
   WB_ACK, desc="writeback ack";
@@ -101,7 +102,7 @@ structure(ResponseMsg, desc="...", interface="Message") {
   int AckCount, default="0",  desc="number of acks in this message";
   MessageSizeType MessageSize,  desc="size category of the message";
   int granularity, desc="RC entry - granularity";
-  int mask, desc="RC entry - mask";
+  Addr mask, desc="RC entry - mask";
 
   bool functionalRead(Packet *pkt) {
     // Valid data block is only present in message with following types
