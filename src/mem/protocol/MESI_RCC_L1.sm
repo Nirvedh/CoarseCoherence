@@ -25,7 +25,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+ 
 /*CHANGES - Added clockEdge()
           msg.Addr --> msg.addr*/
 
@@ -2124,6 +2124,21 @@ setStateE;
 	 kd_wakeUpDependents;
 
  }
+ 
+  transition(IM, RCC_Exclusive, M) { //David TODO: change to SM
+	  u_writeDataToL1Cache;
+      hhx_store_hit;
+      //jj_sendExclusiveUnblock;
+      s_deallocateTBE;
+	//David add
+	a_allocateRCC;  //Nirvedh mdfy (since I removed Davids allocate for  stores)
+	setStateM;
+   
+	o_popIncomingResponseQueue;
+	 kd_wakeUpDependents;
+
+ }
+ 
 
   transition(PF_IM, RCC_allocate, M) {
       u_writeDataToL1Cache;

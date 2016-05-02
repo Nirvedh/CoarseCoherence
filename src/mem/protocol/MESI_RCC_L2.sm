@@ -510,7 +510,7 @@ State DavidgetRCCState(Addr addr){
         //if (is_valid(cache_entry)) {
 		if((cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ //L2 has block, RCC permission good //Ravali
           // The L2 contains the block, so proceeded with handling the request
-         
+			  DPRINTF(RubySlicc, "Forcing state change within L2 from to %s \n",rcc.getRCCL2State(in_msg.addr));
 		setState(tbe,cache_entry,in_msg.addr,DavidgetRCCState(in_msg.addr)); // overwrite cache entry to what RCC is /*CHECK*/
 		 trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
                                                 in_msg.Requestor, cache_entry),
@@ -796,7 +796,8 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 	assert(rcc.isPresent_RCC(address));
       out_msg.addr := address;
       //out_msg.Type := CoherenceResponseType:DATA;
-	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE; //David May1
+	//out_msg.Type := CoherenceResponseType:RCC_ALLOCATE; //David May1
+	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE_EXCLUSIVE;
       out_msg.Sender := machineID;
       out_msg.Destination.add(tbe.L1_GetX_ID);
       //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
@@ -1466,7 +1467,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 
 
   transition(SS, L1_GETX, SS_MB) {
-    d_sendDataToRequestor;
+    ee_sendDataToGetXRequestor;
     // fw_sendFwdInvToSharers; //David May1
     fwm_sendFwdInvToSharersMinusRequestor;
     ll_clearSharers;
@@ -1561,7 +1562,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 
 
   transition(M, L1_GETX, MT_MB) {
-    d_sendDataToRequestor;
+    ee_sendDataToGetXRequestor;
     set_setMRU;
     uu_profileHit;
     nn_addSharer;
