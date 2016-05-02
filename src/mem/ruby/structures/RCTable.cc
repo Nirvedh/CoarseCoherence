@@ -302,10 +302,12 @@ RCTable::split(Addr address)
   int gIter = max_granularity;
   while(gIter >= min_granularity)
   {
+    DPRINTF(RubySlicc,"got to function in SPLITRCC in RCTable\n");
     int count = RCTableL1.count(maskLowOrderBits(address,gIter+ b_sz));
     assert(count <= 1);
     if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     {
+      DPRINTF(RubySlicc,"lookup succeeded from function in SPLITRCC in RCTable\n");
       Addr curr_addr=(RCTableL1.find(maskLowOrderBits(address,gIter+ b_sz)))->first;
       if(gIter==min_granularity)
       {
@@ -324,6 +326,7 @@ RCTable::split(Addr address)
 	RCTableL1.erase(curr_addr);
 	RCTableL1.insert(make_pair(makeNextStrideAddress(curr_addr,gIter-1),temp));
       }
+       DPRINTF(RubySlicc,"RETURNING from function in SPLITRCC in RCTable\n");
        return;
      }
     
@@ -334,6 +337,8 @@ RCTable::split(Addr address)
 void 
 RCTable::splitRCC_l2(Addr address,MachineID Requester)
 {
+
+  DPRINTF(RubySlicc,"got to function in SPLITRCC_L2 in RCTable\n");
   assert(!isL1Cache);
   int gIter = max_granularity;
   while(gIter >= min_granularity)
@@ -342,6 +347,7 @@ RCTable::splitRCC_l2(Addr address,MachineID Requester)
     assert(count <= 1);
     if (count==1 && ((RCTableL2.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     {
+	DPRINTF(RubySlicc,"lookup succeeded from function in SPLITRCC_L2 in RCTable\n");
       Addr curr_addr=(RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->first;
       if(gIter==min_granularity)
       {
@@ -352,7 +358,7 @@ RCTable::splitRCC_l2(Addr address,MachineID Requester)
 	temp.granularity = min_granularity;
 	RCTableL2.erase(curr_addr);
 	RCTableL2.insert(make_pair(curr_addr,temp));
-	return;
+	//DPRINTF(RubySlicc,"RETURNING from function in SPLITRCC_L2 in RCTable\n");
       }
       else if (curr_addr<=maskLowOrderBits(address,gIter+ b_sz-1))
       {
@@ -379,6 +385,7 @@ RCTable::splitRCC_l2(Addr address,MachineID Requester)
 	temp1.sharer.add(Requester);
 	RCTableL2.insert(make_pair(curr_addr,temp));
       }
+      DPRINTF(RubySlicc,"RETURNING from function in SPLITRCC_L2 in RCTable\n");
       return;
      }
       gIter=gIter>>gstep;

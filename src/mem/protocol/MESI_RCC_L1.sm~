@@ -292,7 +292,7 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
   Event mandatory_request_type_to_event(RubyRequestType type) {  //Nirvedh-mdfy
     if (type == RubyRequestType:LD) {
-	DPRINTF(RubySlicc, "it does get a load request\n");  
+	DPRINTF(RubySlicc, "it does get a load request at address: %x\n",);  
       return Event:Load;
     } else if (type == RubyRequestType:IFETCH) {
       DPRINTF(RubySlicc, "it does get a ifetch request\n");    
@@ -2207,16 +2207,16 @@ setStateE;
 
   }
 
-  /*transition({NP,I}, RCC_HIT, IS) {
+  transition({NP,I}, RCC_HIT, IS) {
     oo_allocateL1DCacheBlock;
     i_allocateTBE;
-    a_issueGETS;
+    a_issueRCC_GET;
     uu_profileDataMiss;
     po_observeMiss;
     k_popMandatoryQueue;
-	setStateIS;
+	//setStateIS;
 
-  }*/
+  }
 
   transition(S, RCC_Inv, I) {
     forward_eviction_to_cpu;

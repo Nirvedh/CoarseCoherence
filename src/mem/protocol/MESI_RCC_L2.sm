@@ -338,26 +338,45 @@ State DavidgetRCCState(Addr addr){
 	DPRINTF(RubySlicc,"then the request is in GET_INSTR\n");
       return Event:L1_GET_INSTR;
     } else if (type == CoherenceRequestType:GETX) {
+	DPRINTF(RubySlicc,"then the request is in GETX\n");
       return Event:L1_GETX;
     } else if (type == CoherenceRequestType:UPGRADE) {
-      if ( is_valid(cache_entry) && cache_entry.Sharers.isElement(requestor) ) {
+      DPRINTF(RubySlicc,"then the request is in UPGRADE\n");
+      //if ( is_valid(cache_entry) && cache_entry.Sharers.isElement(requestor) ) { // Nirvedh may 1
+      if ( is_valid(cache_entry) && rcc.getSharers(addr).isElement(requestor) ) {
+	DPRINTF(RubySlicc,"then the request is in UPGRADE 1\n");
         return Event:L1_UPGRADE;
       } else {
-        return Event:L1_GETX;
+	if(rcc.getSharers(addr).isElement(requestor))
+	{
+	  DPRINTF(RubySlicc,"RCTABLE is working as we think\n");
+	}
+	if(is_valid(cache_entry) && rcc.isPresent_RCC(addr)){
+	 DPRINTF(RubySlicc, "David test upgrade cache hit"); 
+	}
+	DPRINTF(RubySlicc,"then the request is in UPGRADE 2\n");
+        return Event:L1_UPGRADE;
       }
     } else if (type == CoherenceRequestType:PUTX) {
-      if (isSharer(addr, requestor, cache_entry)) {
-        return Event:L1_PUTX;
-      } else {
-        return Event:L1_PUTX_old;
-      }
-	} else if (type == CoherenceRequestType:RCC_GET) { //David add
-		if(is_valid(cache_entry)){		
+      DPRINTF(RubySlicc,"then the request is in PUTX\n");
+       if (isSharer(addr, requestor, cache_entry)) {
+	 DPRINTF(RubySlicc,"then the request is in PUTX 1\n");
+         return Event:L1_PUTX;
+       } else {
+	 DPRINTF(RubySlicc,"then the request is in PUTX 2\n");
+         return Event:L1_PUTX_old;
+       }
+      } 
+       else if (type == CoherenceRequestType:RCC_GET) { //David add
+	 DPRINTF(RubySlicc,"then the request is in RCC_GET\n");
+	 if(is_valid(cache_entry)){		
+	   DPRINTF(RubySlicc,"then the request is in RCC_GET 1\n");
 			return Event:RCC_Get;
-		}
-		else{
+	}
+	else{
+	  DPRINTF(RubySlicc,"then the request is in RCC GET 2\n");
 			return Event:RCC_Get_Miss;
-		}
+	}
     } else {
       //DPRINTF(RubySlicc, "address: %s, Request Type: %s\n", addr, type);
       error("Invalid L1 forwarded request type");
@@ -463,6 +482,17 @@ State DavidgetRCCState(Addr addr){
       peek(L1RequestL2Network_in,  RequestMsg) {
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
+	
+	if(rcc.isPresent_RCC(in_msg.addr)){
+	    if(DavidgetRCCState(in_msg.addr) == State:SS){
+	    DPRINTF(RubySlicc,"I bet we never get this ... L2 state in SS \n");
+	    }
+	     if(DavidgetRCCState(in_msg.addr) == State:MT){
+	     DPRINTF(RubySlicc,"see this a lot i bet... L2 state in MT \n");
+	    }
+	}
+	
+	
 
         //DPRINTF(RubySlicc, "Addr: %s State: %s Req: %s Type: %s Dest: %s\n",
                 //in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
@@ -541,9 +571,10 @@ State DavidgetRCCState(Addr addr){
 
   action(b_forwardRequestToExclusive, "b", desc="Forward request to the exclusive L1") {
 
-//DPRINTF(RubySlicc, "b_forwardRequestToExclusive");
+DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
+	DPRINTF(RubySlicc, "b_forwardRequestToExclusive enqueue\n ");
         assert(is_valid(cache_entry));
         out_msg.addr := address;
         out_msg.Type := in_msg.Type;
@@ -731,17 +762,19 @@ State DavidgetRCCState(Addr addr){
 }
 
   action(a_sendDataToRCC_GetHITRequestor, "aRCCGh", desc="Send datat to L1 RCC_GET requestor") {
-     
+	DPRINTF(RubySlicc,"then the request is in a_sendDataToRCC_GetHITRequestor\n");
 	if(is_valid(cache_entry)){ // L2 already has data, go ahead and send
-
+	 DPRINTF(RubySlicc,"then the request is in a_sendDataToRCC_GetHITRequestor inside\n");
+	  peek(L1RequestL2Network_in, RequestMsg) {
 	    enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
 	      //assert(is_valid(tbe));
+	      
 	      assert(is_valid(cache_entry));
 		assert(rcc.isPresent_RCC(address));
 	      out_msg.addr := address;
 	      out_msg.Type := CoherenceResponseType:DATA;
 	      out_msg.Sender := machineID;
-	      out_msg.Destination.add(tbe.L1_GetX_ID);
+	      out_msg.Destination.add(in_msg.Requestor);
 	      //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
 	      out_msg.DataBlk := cache_entry.DataBlk;
 	      //DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
@@ -751,7 +784,8 @@ State DavidgetRCCState(Addr addr){
 		out_msg.mask			:= 		rcc.getMask(address);
 	    }
 	}
-	
+	}
+	DPRINTF(RubySlicc,"then the request is in a_sendDataToRCC_GetHITRequestor leaving\n");
 		
 }
 
@@ -779,7 +813,9 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(f_sendInvToSharers, "f", desc="invalidate sharers for L2 replacement") {
+    DPRINTF(RubySlicc,"f_sendInvToSharers\n");
     enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
+      DPRINTF(RubySlicc,"f_sendInvToSharers enqueue\n");
       assert(is_valid(cache_entry));
       assert(rcc.isPresent_RCC(address));
       out_msg.addr := address;
@@ -794,8 +830,10 @@ State DavidgetRCCState(Addr addr){
 
 
   action(fw_sendFwdInvToSharers, "fw", desc="invalidate sharers for request") {
+    DPRINTF(RubySlicc,"fw_sendFwdInvToSharers\n");
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
+	DPRINTF(RubySlicc,"fw_sendFwdInvToSharers enqueue\n");
         assert(is_valid(cache_entry));
 	assert(rcc.isPresent_RCC(address));
         out_msg.addr := address;
@@ -810,8 +848,10 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(fwm_sendFwdInvToSharersMinusRequestor, "fwm", desc="invalidate sharers for request, requestor is sharer") {
+    DPRINTF(RubySlicc,"fwm_sendFwdInvToSharersMinusRequestor\n");
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
+	DPRINTF(RubySlicc,"fwm_sendFwdInvToSharersMinusRequestor enqueue\n");
         assert(is_valid(cache_entry));
 	assert(rcc.isPresent_RCC(address));
         out_msg.addr := address;
@@ -1267,7 +1307,7 @@ State DavidgetRCCState(Addr addr){
 	//David add
 
 	a_l2allocateRCC;	
-    ll_clearSharers;
+    //ll_clearSharers;
     nn_addSharer;
     i_allocateTBE;
     ss_recordGetSL1ID;
@@ -1285,7 +1325,7 @@ State DavidgetRCCState(Addr addr){
 //David add
 	a_l2allocateRCC; //Nirvedh track 1
 
-    ll_clearSharers;
+    //ll_clearSharers;
     nn_addSharer;
     i_allocateTBE;
     ss_recordGetSL1ID;
@@ -1304,7 +1344,8 @@ State DavidgetRCCState(Addr addr){
     qq_allocateL2CacheBlock;
 	//David add
 
-	a_l2allocateRCC;	
+	a_l2allocateRCC;
+	//ll_clearSharers;
     nn_addSharer_special;
     i_allocateTBE;
     ss_recordGetSL1ID;
@@ -1322,7 +1363,7 @@ State DavidgetRCCState(Addr addr){
 //David add
 	a_l2allocateRCC; //Nirvedh track 1
 
-    ll_clearSharers;
+    //ll_clearSharers;
     nn_addSharer_special;
     i_allocateTBE;
     ss_recordGetSL1ID;
@@ -1343,8 +1384,8 @@ State DavidgetRCCState(Addr addr){
 	//David add
 	a_l2allocateRCC;
 
-    ll_clearSharers;
-    // nn_addSharer;
+    //ll_clearSharers;
+    nn_addSharer;
     i_allocateTBE;
     xx_recordGetXL1ID;
     a_issueFetchToMemory;
@@ -1364,7 +1405,7 @@ State DavidgetRCCState(Addr addr){
     s_deallocateTBE;
     o_popIncomingResponseQueue;
 
-	setStateMT_MB;
+	//setStateMT_MB;
   }
 
   transition(IS, Mem_Data, SS) {
@@ -1383,7 +1424,7 @@ State DavidgetRCCState(Addr addr){
     s_deallocateTBE;
     o_popIncomingResponseQueue;
 
-	setStateMT_MB;
+	//setStateMT_MB;
   }
 
   transition({IS, ISS}, {L1_GETS, L1_GET_INSTR}, IS) {
@@ -1413,7 +1454,7 @@ State DavidgetRCCState(Addr addr){
   }
 
 //David add transition
-  transition(SS, RCC_Get) {
+  transition({SS,M}, RCC_Get) {   // Nirvedh RCC track 1
     //ds_sendSharedDataToRequestor; //David May1
     //a_sendDataToRCC_GetRequestor; //David PM 7:00
     a_sendDataToRCC_GetHITRequestor;
@@ -1428,24 +1469,34 @@ State DavidgetRCCState(Addr addr){
     d_sendDataToRequestor;
     // fw_sendFwdInvToSharers; //David May1
     fwm_sendFwdInvToSharersMinusRequestor;
+    ll_clearSharers;
+    nn_addSharer;
     set_setMRU;
     uu_profileHit;
+    
+    a_l2splitRCC;
+	//setStateSS_MB;
+    
     jj_popL1RequestQueue;
 
 //David add
-	a_l2splitRCC;
-	setStateSS_MB;
+	
   }
 
   transition(SS, L1_UPGRADE, SS_MB) {
     fwm_sendFwdInvToSharersMinusRequestor;
     ts_sendInvAckToUpgrader;
+    ll_clearSharers;
+    nn_addSharer;
     set_setMRU;
     uu_profileHit;
+    
+    a_l2splitRCC;
+	//setStateSS_MB;
+    
     jj_popL1RequestQueue;
 
-	a_l2splitRCC;
-	setStateSS_MB;
+	
   }
 
   transition(SS, L2_Replacement_clean, I_I) {
@@ -1453,7 +1504,7 @@ State DavidgetRCCState(Addr addr){
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
 
-	setStateI_I;
+	//setStateI_I;
   }
 
   transition(SS, {L2_Replacement, MEM_Inv}, S_I) {
@@ -1461,7 +1512,7 @@ State DavidgetRCCState(Addr addr){
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
 
-	setStateS_I;
+	//setStateS_I;
   }
 
   transition(SS, RCC_Get_Miss, SS_MB_RCC){
@@ -1472,7 +1523,7 @@ State DavidgetRCCState(Addr addr){
     uu_profileMiss;
     jj_popL1RequestQueue;
 
-    setStateSS_MB_RCC;
+   // setStateSS_MB_RCC;
 }
 
   transition(SS_MB_RCC,Mem_Data,SS){
@@ -1494,7 +1545,7 @@ State DavidgetRCCState(Addr addr){
     uu_profileMiss;
     jj_popL1RequestQueue;
 
-    setStateMT_MB_RCC;
+    //setStateMT_MB_RCC;
   }
 
   transition(MT_MB_RCC,Mem_Data,MT){
@@ -1513,11 +1564,15 @@ State DavidgetRCCState(Addr addr){
     d_sendDataToRequestor;
     set_setMRU;
     uu_profileHit;
+    nn_addSharer;
+    
+    // David add
+	a_l2splitRCC;
+	//setStateMT_MB;
+    
     jj_popL1RequestQueue;
 
-// David add
-	a_l2splitRCC;
-	setStateMT_MB;
+
   }
 
   transition(M, L1_GET_INSTR, SS) {
@@ -1536,7 +1591,7 @@ State DavidgetRCCState(Addr addr){
     uu_profileHit;
     jj_popL1RequestQueue;
 
-	setStateMT_MB;
+	//setStateMT_MB;
   }
 
   transition(M, {L2_Replacement, MEM_Inv}, M_I) {
@@ -1544,7 +1599,7 @@ State DavidgetRCCState(Addr addr){
     c_exclusiveReplacement;
     rr_deallocateL2CacheBlock;
 
-	setStateM_I;
+	//setStateM_I;
   }
 
   transition(M, L2_Replacement_clean, M_I) {
@@ -1552,7 +1607,7 @@ State DavidgetRCCState(Addr addr){
     c_exclusiveCleanReplacement;
     rr_deallocateL2CacheBlock;
 
-	setStateM_I;
+	//setStateM_I;
   }
 
 
@@ -1562,15 +1617,20 @@ State DavidgetRCCState(Addr addr){
     b_forwardRequestToExclusive;
     uu_profileMiss;
     set_setMRU;
+    ll_clearSharers;
+    nn_addSharer;
+    
+    a_l2splitRCC;
+	//setStateMT_MB;
+    
     jj_popL1RequestQueue;
 
 //David add
-	a_l2splitRCC;
-	setStateMT_MB;
+	
   }
 
   transition(MT, RCC_Get){ // David add transition -- same as MT with GETS request, but no state transition
- 	b_forwardRequestToExclusive;
+ 	a_sendDataToRCC_GetHITRequestor;
 	uu_profileMiss;
 	set_setMRU;
 	jj_popL1RequestQueue;
@@ -1579,10 +1639,11 @@ State DavidgetRCCState(Addr addr){
   transition(MT, {L1_GETS, L1_GET_INSTR}, MT_IIB) {
     b_forwardRequestToExclusive;
     uu_profileMiss;
+    nn_addSharer;
     set_setMRU;
     jj_popL1RequestQueue;
 
-	setStateMT_IIB;
+	//setStateMT_IIB;
   }
 
   transition(MT, {L2_Replacement, MEM_Inv}, MT_I) {
@@ -1590,7 +1651,7 @@ State DavidgetRCCState(Addr addr){
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
 
-	setStateMT_I;
+	//setStateMT_I;
   }
 
   transition(MT, L2_Replacement_clean, MCT_I) {
@@ -1598,7 +1659,7 @@ State DavidgetRCCState(Addr addr){
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
 
-	setStateMCT_I;
+	//setStateMCT_I;
   }
 
   transition(MT, L1_PUTX, M) {
@@ -1607,7 +1668,7 @@ State DavidgetRCCState(Addr addr){
     t_sendWBAck;
     jj_popL1RequestQueue;
 
-	setStateM;
+	//setStateM;
   }
 
   transition({SS_MB,MT_MB}, Exclusive_Unblock, MT) {
@@ -1627,14 +1688,14 @@ State DavidgetRCCState(Addr addr){
     nnu_addSharerFromUnblock;
     k_popUnblockQueue;
 
-	setStateMT_IB;
+	//setStateMT_IB;
   }
 
   transition(MT_IIB, {WB_Data, WB_Data_clean}, MT_SB) {
     m_writeDataToCache;
     o_popIncomingResponseQueue;
 
-	setStateMT_SB;
+	//setStateMT_SB;
   }
 
   transition(MT_IB, {WB_Data, WB_Data_clean}, SS) {
@@ -1667,7 +1728,7 @@ State DavidgetRCCState(Addr addr){
     c_exclusiveCleanReplacement;
     o_popIncomingResponseQueue;
 
-	setStateM_I;
+	//setStateM_I;
   }
 
   transition({MT_I, MCT_I}, WB_Data, M_I) {
@@ -1675,14 +1736,14 @@ State DavidgetRCCState(Addr addr){
     ct_exclusiveReplacementFromTBE;
     o_popIncomingResponseQueue;
 
-	setStateM_I;
+	//setStateM_I;
   }
 
   transition(MCT_I, {WB_Data_clean, Ack_all}, M_I) {
     c_exclusiveCleanReplacement;
     o_popIncomingResponseQueue;
 
-	setStateM_I;
+	//setStateM_I;
   }
 
   transition(MCT_I,  {L1_PUTX, L1_PUTX_old}){
@@ -1694,7 +1755,7 @@ State DavidgetRCCState(Addr addr){
     ct_exclusiveReplacementFromTBE;
     o_popIncomingResponseQueue;
 
-	setStateM_I;
+	//setStateM_I;
   }
 
   transition(MT_I, {L1_PUTX, L1_PUTX_old}){
@@ -1715,7 +1776,7 @@ State DavidgetRCCState(Addr addr){
     ct_exclusiveReplacementFromTBE;
     o_popIncomingResponseQueue;
 
-	setStateM_I;
+	//setStateM_I;
   }
 
   transition(M_I, Mem_Ack, NP) {
@@ -1723,6 +1784,6 @@ State DavidgetRCCState(Addr addr){
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
 
-	setStateNP;
+	//setStateNP;
   }
 }

@@ -868,6 +868,7 @@ State DavidgetRCCState(Addr addr){
   action(c_issueUPGRADE, "c", desc="Issue GETX") {
     peek(mandatoryQueue_in, RubyRequest) {
       enqueue(requestL1Network_out, RequestMsg,  l1_request_latency) {
+	DPRINTF(RubySlicc, "Issuing upgrade\n");
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:UPGRADE;
         out_msg.Requestor := machineID;
