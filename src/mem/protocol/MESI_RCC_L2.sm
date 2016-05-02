@@ -355,7 +355,7 @@ State DavidgetRCCState(Addr addr){
 	 DPRINTF(RubySlicc, "David test upgrade cache hit"); 
 	}
 	DPRINTF(RubySlicc,"then the request is in UPGRADE 2\n");
-        return Event:L1_UPGRADE;
+        return Event:L1_GETX;
       }
     } else if (type == CoherenceRequestType:PUTX) {
       DPRINTF(RubySlicc,"then the request is in PUTX\n");
@@ -494,9 +494,9 @@ State DavidgetRCCState(Addr addr){
 	
 	
 
-        //DPRINTF(RubySlicc, "Addr: %s State: %s Req: %s Type: %s Dest: %s\n",
-                //in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
-                //in_msg.Requestor, in_msg.Type, in_msg.Destination);
+        DPRINTF(RubySlicc, "in_port l1requst l2 Addr: %x State: %s Req: %s Type: %s Dest: %s\n",
+                in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
+                in_msg.Requestor, in_msg.Type, in_msg.Destination);
 
         assert(machineIDToMachineType(in_msg.Requestor) == MachineType:L1Cache);
         assert(in_msg.Destination.isElement(machineID));
@@ -508,7 +508,17 @@ State DavidgetRCCState(Addr addr){
 		
 	
         //if (is_valid(cache_entry)) {
+	
+        DPRINTF(RubySlicc, "in_port valid entry Addr: %x State: %s Req: %s Type: %s Dest: %s\n",
+                in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
+                in_msg.Requestor, in_msg.Type, in_msg.Destination);
+
+
 		if((cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ //L2 has block, RCC permission good //Ravali
+		        DPRINTF(RubySlicc, "in_port valid cache rcc present Addr: %x State: %s Req: %s Type: %s Dest: %s\n",
+                in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
+                in_msg.Requestor, in_msg.Type, in_msg.Destination);
+
           // The L2 contains the block, so proceeded with handling the request
 			  DPRINTF(RubySlicc, "Forcing state change within L2 from to %s \n",rcc.getRCCL2State(in_msg.addr));
 		setState(tbe,cache_entry,in_msg.addr,DavidgetRCCState(in_msg.addr)); // overwrite cache entry to what RCC is /*CHECK*/
@@ -1118,7 +1128,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
       assert(is_valid(tbe));
       assert(is_valid(cache_entry));
       out_msg.Addr := address;
-      out_msg.Type := CoherenceResponseType:RCC_allocate;
+      out_msg.Type := CoherenceResponseType:RCC_ALLOCATE_EXCLUSIVE;
       out_msg.Sender := machineID;
       out_msg.Destination.add(tbe.L1_GetX_ID);
       //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
@@ -1552,7 +1562,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
   transition(MT_MB_RCC,Mem_Data,MT){
     m_writeDataToCache;
     //e_sendDataToGetSRequestors; //David May1
-    a_sendDataToRCC_GetRequestor;
+    ee_sendDataToGetXRequestor;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
