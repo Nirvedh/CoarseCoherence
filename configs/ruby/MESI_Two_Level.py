@@ -125,7 +125,7 @@ def create_system(options, full_system, system, dma_ports, ruby_system):
         l1_cntrl.responseToL1Cache.slave = ruby_system.network.master
         # multi-coarse declaring wires between L1-controller and L1-RCC
         #l1_cntrl.requestToRCCl1 = RubyWireBuffer()
-	rctable = Rctable()
+        rctable = Rctable()
         l1_cntrl.rcc = rctable
         l1_cntrl.rcc.isL1Cache = True;
 

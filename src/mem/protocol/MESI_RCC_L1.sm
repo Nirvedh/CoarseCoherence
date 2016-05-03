@@ -645,8 +645,11 @@ State DavidgetRCCState(Addr addr){
 					if(rcc.isPresent_RCC(in_msg.LineAddress)){ //Ravali
 							//Match in RCC! This means if we have permission, we can do RCC_GET
 							if(mandatory_request_type_to_event(in_msg.Type) == Event:Load || mandatory_request_type_to_event(in_msg.Type) == Event:Ifetch){
+                 if((isReadState(DavidgetRCCState(in_msg.LineAddress)))) // Nirvedh May 3
 								//have RCC hit, and asked for read, so we must have permission already
-								trigger(Event:RCC_HIT, in_msg.LineAddress, L1Icache_entry, TBEs[in_msg.LineAddress]);
+								{
+                  trigger(Event:RCC_HIT, in_msg.LineAddress, L1Icache_entry, TBEs[in_msg.LineAddress]);
+                }
 							}
 							if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(DavidgetRCCState(in_msg.LineAddress)))){
 								//have RCC hit, asked for write, and we also have permission
@@ -699,13 +702,18 @@ State DavidgetRCCState(Addr addr){
 							if(rcc.isPresent_RCC(in_msg.LineAddress)){ //Ravali
 							//Match in RCC! This means if we have permission, we can do RCC_GET
 								if(mandatory_request_type_to_event(in_msg.Type) == Event:Load || mandatory_request_type_to_event(in_msg.Type) == Event:Ifetch){
-
-									trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);
+                    if((isReadState(DavidgetRCCState(in_msg.LineAddress)))) // Nirvedh May 3
+                    {
+									    trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);
+                    }
 								}
 								if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(DavidgetRCCState(in_msg.LineAddress)))){
 								//have RCC hit, asked for write, and we also have permission
 									trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);					
 								} /*CHECK*/
+                 else{ // RCENtry present but not in correct permission
+                 trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);
+                 }
 							}
 							else{ //no RCC hit -- normal request
 						  			trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);
