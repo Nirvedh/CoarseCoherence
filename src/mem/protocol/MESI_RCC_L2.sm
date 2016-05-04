@@ -1673,13 +1673,13 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 	//setStateMCT_I;
   }
 
-  transition(MT, L1_PUTX, M) {
+  transition(MT, L1_PUTX, M) {   //Nirvedh May 3
     ll_clearSharers;
     mr_writeDataToCacheFromRequest;
     t_sendWBAck;
     jj_popL1RequestQueue;
 
-	//setStateM;
+	setStateM; 
   }
 
   transition({SS_MB,MT_MB}, Exclusive_Unblock, MT) {
