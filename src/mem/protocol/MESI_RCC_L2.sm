@@ -1679,7 +1679,9 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
     t_sendWBAck;
     jj_popL1RequestQueue;
 
-	setStateM; 
+	setStateM; // I know logically this should not be here but hello world doesnt work if you comment this out
+             // so this will need special handling. i think we must do a split here and send only one block to L1 back
+             // discuss with david
   }
 
   transition({SS_MB,MT_MB}, Exclusive_Unblock, MT) {

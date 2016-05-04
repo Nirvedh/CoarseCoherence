@@ -648,7 +648,7 @@ State DavidgetRCCState(Addr addr){
                DPRINTF(RubySlicc,"5\n");
 							//Match in RCC! This means if we have permission, we can do RCC_GET
 							if(mandatory_request_type_to_event(in_msg.Type) == Event:Load || mandatory_request_type_to_event(in_msg.Type) == Event:Ifetch){
-                 if((isReadState(DavidgetRCCState(in_msg.LineAddress)))) // Nirvedh May 3
+                 if((isReadState(DavidgetRCCState(in_msg.LineAddress)))) // Nirvedh May 3 Hello World we have to check for different cases
 								//have RCC hit, and asked for read, so we must have permission already
 								{
                   DPRINTF(RubySlicc,"5.5\n");
