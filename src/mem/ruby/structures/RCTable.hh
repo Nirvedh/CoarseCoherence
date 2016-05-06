@@ -96,6 +96,7 @@ class RCTable : public SimObject
     void split(Addr address);
     void splitRCC_l2(Addr address,MachineID Requester); 
     bool isPresent_RCC(Addr address);
+    RCTable* myAddress(); // need this function for debugging 
     bool isL1Cache; 
   private:
      

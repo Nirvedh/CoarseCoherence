@@ -292,13 +292,13 @@ machine(L1Cache, "MESI Directory L1 Cache CMP")
 
   Event mandatory_request_type_to_event(RubyRequestType type) {  //Nirvedh-mdfy
     if (type == RubyRequestType:LD) {
-	DPRINTF(RubySlicc, "it does get a load request at address: %x\n",);  
+	DPRINTF(RubySlicc, "it does get a load request\n");  
       return Event:Load;
     } else if (type == RubyRequestType:IFETCH) {
       DPRINTF(RubySlicc, "it does get a ifetch request\n");    
       return Event:Ifetch;
     } else if ((type == RubyRequestType:ST) || (type == RubyRequestType:ATOMIC)) {
-	DPRINTF(RubySlicc, "it does get a store request\n");  
+	    DPRINTF(RubySlicc, "it does get a store request\n"); 
       return Event:Store;
     } else {
       error("Invalid RubyRequestType");
@@ -478,29 +478,40 @@ State DavidgetRCCState(Addr addr){
 
   // Response  L1 Network - response msg to this L1 cache
   in_port(responseL1Network_in, ResponseMsg, responseToL1Cache, rank = 2) {
+  
+  
+  
+  
     if (responseL1Network_in.isReady(clockEdge())) {
       peek(responseL1Network_in, ResponseMsg, block_on="addr") {
         assert(in_msg.Destination.isElement(machineID));
 
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
-      DPRINTF(RubySlicc,"response from L2 for address %x and state %s and type is %s\n",in_msg.addr, getState(tbe, cache_entry, in_msg.addr), in_msg.Type );
+      DPRINTF(RubySlicc,"response from L2 for address %x and state %s and type is %s\n",in_msg.addr, getState(tbe, cache_entry, in_msg.addr), in_msg.Type ); //May 5 
+      //setState(tbe, cache_entry, in_msg.addr, DavidgetRCCState(in_msg.addr)); //overwrite cache entry to do correct transition *CHECK*
+      //DPRINTF(RubySlicc,"forced state change for address %x and state %s and type is %s\n",in_msg.addr, getState(tbe, cache_entry, in_msg.addr), in_msg.Type ); //May 5 
+      
+      
         //if(in_msg.Type == CoherenceResponseType:DATA_EXCLUSIVE) {
 	if(in_msg.Type == CoherenceResponseType:RCC_ALLOCATE_EXCLUSIVE){ //David May1
-	DPRINTF(RubySlicc,"we should see this before the culprit ugrade %x\n",in_msg.addr);
+	//DPRINTF(RubySlicc,"we should see this before the culprit ugrade %x\n",in_msg.addr);
           trigger(Event:RCC_Exclusive, in_msg.addr, cache_entry, tbe);
         } else if(in_msg.Type == CoherenceResponseType:DATA) {
+        DPRINTF(RubySlicc,"debugging data 1 %x\n",in_msg.addr);
           if ((getState(tbe, cache_entry, in_msg.addr) == State:IS ||
                getState(tbe, cache_entry, in_msg.addr) == State:IS_I ||
                getState(tbe, cache_entry, in_msg.addr) == State:PF_IS ||
                getState(tbe, cache_entry, in_msg.addr) == State:PF_IS_I) &&
               machineIDToMachineType(in_msg.Sender) == MachineType:L1Cache) {
-
+              DPRINTF(RubySlicc,"debugging data 2 %x\n",in_msg.addr);
               trigger(Event:DataS_fromL1, in_msg.addr, cache_entry, tbe);
-
+              DPRINTF(RubySlicc,"debugging data 3 %x\n",in_msg.addr);
           } else if ( (getPendingAcks(tbe) - in_msg.AckCount) == 0 ) {
+          DPRINTF(RubySlicc,"debugging data 3 %x and state is %s\n",in_msg.addr);
             trigger(Event:Data_all_Acks, in_msg.addr, cache_entry, tbe);
-          } else {
+          } else { 
+          DPRINTF(RubySlicc,"debugging data 4 (this will cause panic as its currently not supported) %x\n",in_msg.addr);
             trigger(Event:Data, in_msg.addr, cache_entry, tbe);
           }
 
@@ -511,6 +522,7 @@ State DavidgetRCCState(Addr addr){
             trigger(Event:Ack, in_msg.addr, cache_entry, tbe);
           }
         } else if (in_msg.Type == CoherenceResponseType:WB_ACK) {
+                                                                      //Eg
           trigger(Event:WB_Ack, in_msg.addr, cache_entry, tbe);
 	} else if (in_msg.Type == CoherenceResponseType:RCC_ALLOCATE) { // Ravali - RCC_allocate to RCC_ALLOCATE CoherenceResponseType: RCC_ALLOCATE, event: RCC_allocate
 			 trigger(Event:RCC_allocate, in_msg.addr, cache_entry, tbe);
@@ -605,6 +617,7 @@ State DavidgetRCCState(Addr addr){
   in_port(mandatoryQueue_in, RubyRequest, mandatoryQueue, desc="...", rank = 0) {
     if (mandatoryQueue_in.isReady(clockEdge())) {
       peek(mandatoryQueue_in, RubyRequest, block_on="LineAddress") {
+      DPRINTF(RubySlicc, "it does get a %s request at address: %x and address of rctable is %x\n",in_msg.Type,in_msg.LineAddress,rcc.myAddress()); 
       DPRINTF(RubySlicc,"1\n");
 
         // Check for data access to blocks in I-cache and ifetchs to blocks in D-cache
@@ -756,6 +769,7 @@ State DavidgetRCCState(Addr addr){
 	 enqueue(requestL1Network_out, RequestMsg, l1_response_latency) {
    if(in_msg.addr!=out_msg.addr) // Nirvedh May 3 adding this becasue I see putx for the same message twice
    {
+        DPRINTF(RubySlicc,"Multiple putx going through for address %x\n",address);
 	      out_msg.addr := address;
 	      out_msg.Type := CoherenceRequestType:PUTX;
 	      out_msg.DataBlk := cache_entry.DataBlk;
@@ -1055,6 +1069,7 @@ State DavidgetRCCState(Addr addr){
       } else {
         out_msg.MessageSize := MessageSizeType:Writeback_Control;
       }
+      DPRINTF(RubySlicc, "PUTX for address %x\n", address);
     }
   }
 
@@ -1078,7 +1093,7 @@ State DavidgetRCCState(Addr addr){
       out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
                           l2_select_low_bit, l2_select_num_bits, intToID(0)));
       out_msg.MessageSize := MessageSizeType:Response_Control;
-      DPRINTF(RubySlicc, "%x\n", address);
+      //DPRINTF(RubySlicc, "%x\n", address);
 
     }
   }
@@ -1198,9 +1213,9 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(kd_wakeUpDependents, "kd", desc="wake-up dependents") {
-	DPRINTF(RubySlicc, "about to wake up dependent");
+	//DPRINTF(RubySlicc, "about to wake up dependent\n");
     wakeUpBuffers(address);
-	DPRINTF(RubySlicc, "woke up dependent");
+	//DPRINTF(RubySlicc, "woke up dependent\n");
   }
 
   action(uu_profileInstMiss, "\uim", desc="Profile the demand miss") {
@@ -1514,7 +1529,7 @@ State DavidgetRCCState(Addr addr){
 	DPRINTF(RubySlicc, "about to set state S");
 	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:S));
-	DPRINTF(RubySlicc, "done with setRCC to S");
+	DPRINTF(RubySlicc, "done with setRCC to S\n");
   }
 
   action(setStateE,"sse", desc="set RCC to E"){
@@ -1545,6 +1560,11 @@ State DavidgetRCCState(Addr addr){
   action(setStateIS_I,"ssISI", desc="set RCC to IS_I"){
 	assert(rcc.isPresent_RCC(address));
 	rcc.setRCCL1State(address,L1Cache_State_to_string(State:IS_I));
+  }
+  
+  action(setStateM_I,"ssM_I", desc="set RCC to M_I"){
+	assert(rcc.isPresent_RCC(address));
+	rcc.setRCCL1State(address,L1Cache_State_to_string(State:M_I));
   }
 
   action(setStateSINK,"ssSINK", desc="set RCC to SINK_WB_ACK"){
@@ -1824,8 +1844,9 @@ a_splitRCC;
     f_sendDataToL2;  //David May1 -- not sure -- may need to keep as L2 probably is awaiting response, even though we're about to PUTX everything
    
 //David add
+  a_splitRCC;
 	a_multiplePUTX; //David May1 -- before the split, write everything back that you're losing permission to
-	a_splitRCC;
+	
  l_popRequestQueue;
 
 
@@ -1845,8 +1866,9 @@ a_splitRCC;
 
 //David add
 	////a_sendAckNack;
+  a_splitRCC;
 	a_multiplePUTX;
-	a_splitRCC;
+	setStateM_I;
 	//a_sendRCC_allocateToRequestor;
 
     l_popRequestQueue;
@@ -2318,5 +2340,11 @@ setStateE;
     dg_invalidate_sc;
     l_popRequestQueue;
 	setStateIM;
+  }
+  transition(S,WB_Ack, S) {
+  // Do nothing, these are acks given back from the multiple putx section, ideally we should stall till all acks are recieved back
+  o_popIncomingResponseQueue;
+  setStateS;
+  }
 }
-}
+

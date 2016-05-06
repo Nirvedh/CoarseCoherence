@@ -483,20 +483,20 @@ State DavidgetRCCState(Addr addr){
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
 	
-	if(rcc.isPresent_RCC(in_msg.addr)){
-	    if(DavidgetRCCState(in_msg.addr) == State:SS){
-	    DPRINTF(RubySlicc,"I bet we never get this ... L2 state in SS \n");
-	    }
-	     if(DavidgetRCCState(in_msg.addr) == State:MT){
-	     DPRINTF(RubySlicc,"see this a lot i bet... L2 state in MT \n");
-	    }
-	}
-	
+//	if(rcc.isPresent_RCC(in_msg.addr)){
+//	    if(DavidgetRCCState(in_msg.addr) == State:SS){
+//	    DPRINTF(RubySlicc,"I bet we never get this ... L2 state in SS \n");
+//	    }
+//	     if(DavidgetRCCState(in_msg.addr) == State:MT){
+//	     DPRINTF(RubySlicc,"see this a lot i bet... L2 state in MT \n");
+//	    }
+//	}
+//	
 	
 
-        DPRINTF(RubySlicc, "in_port l1requst l2 Addr: %x State: %s Req: %s Type: %s Dest: %s\n",
+        DPRINTF(RubySlicc, "in_port l1requst l2 Addr: %x State: %s Req: %s Type: %s Dest:\n",
                 in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
-                in_msg.Requestor, in_msg.Type, in_msg.Destination);
+                in_msg.Requestor, in_msg.Type);
 
         assert(machineIDToMachineType(in_msg.Requestor) == MachineType:L1Cache);
         assert(in_msg.Destination.isElement(machineID));
@@ -800,7 +800,8 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 }
 
   action(ee_sendDataToGetXRequestor, "ee", desc="Send data from cache to GetX ID") {
-    enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
+  //peek(L1RequestL2Network_in, RequestMsg) {
+    enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
       assert(is_valid(tbe));
       assert(is_valid(cache_entry));
 	assert(rcc.isPresent_RCC(address));
@@ -809,7 +810,8 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 	//out_msg.Type := CoherenceResponseType:RCC_ALLOCATE; //David May1
 	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE_EXCLUSIVE;
       out_msg.Sender := machineID;
-      out_msg.Destination.add(tbe.L1_GetX_ID);
+      out_msg.Destination.add(tbe.L1_GetX_ID); //Nirvedh may 5, after two hours of analysis I found that L2 might be sending allocates to wrong L1 controller
+      // out_msg.Destination.add(in_msg.Requestor);
       //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
       out_msg.DataBlk := cache_entry.DataBlk;
       //DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
@@ -821,7 +823,36 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 	  out_msg.granularity 	:= 		rcc.getGranularity(address);
 	  out_msg.mask			:= 		rcc.getMask(address);
     }
+    //}
   }
+
+  action(ee_sendDataToGetXRequestor_ver2, "eever", desc="Send data from cache to GetX ID") {
+  peek(L1RequestL2Network_in, RequestMsg) {
+    enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
+      assert(is_valid(tbe));
+      assert(is_valid(cache_entry));
+	assert(rcc.isPresent_RCC(address));
+      out_msg.addr := address;
+      //out_msg.Type := CoherenceResponseType:DATA;
+	//out_msg.Type := CoherenceResponseType:RCC_ALLOCATE; //David May1
+	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE_EXCLUSIVE;
+      out_msg.Sender := machineID;
+      //out_msg.Destination.add(tbe.L1_GetX_ID); //Nirvedh may 5, after two hours of analysis I found that L2 might be sending allocates to wrong L1 controller
+       out_msg.Destination.add(in_msg.Requestor);
+      //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
+      out_msg.DataBlk := cache_entry.DataBlk;
+      //DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
+            //  out_msg.addr, out_msg.Destination, out_msg.DataBlk);
+      out_msg.MessageSize := MessageSizeType:Response_Data;
+
+
+//David add
+	  out_msg.granularity 	:= 		rcc.getGranularity(address);
+	  out_msg.mask			:= 		rcc.getMask(address);
+    }
+    }
+  }
+
 
   action(f_sendInvToSharers, "f", desc="invalidate sharers for L2 replacement") {
     DPRINTF(RubySlicc,"f_sendInvToSharers\n");
@@ -1477,7 +1508,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 
 
   transition(SS, L1_GETX, SS_MB) {
-    ee_sendDataToGetXRequestor;
+    ee_sendDataToGetXRequestor_ver2; // Change this may 5 1
     // fw_sendFwdInvToSharers; //David May1
     fwm_sendFwdInvToSharersMinusRequestor;
     ll_clearSharers;
@@ -1572,7 +1603,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 
 
   transition(M, L1_GETX, MT_MB) {
-    ee_sendDataToGetXRequestor;
+    ee_sendDataToGetXRequestor_ver2; //// Change this may 5 2
     set_setMRU;
     uu_profileHit;
     nn_addSharer;

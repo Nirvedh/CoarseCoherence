@@ -36,11 +36,11 @@
 #include "mem/ruby/structures/RCTable.hh"
 
 using namespace std;
-int const max_granularity = 64;
-int const min_granularity = 1;
+int const max_granularity = 64; // This is wrong becasue mask function expects number of bits to be masked but protocol livelocks if we give correct value
+int const min_granularity = 1; // This is also wrong beacuse in minimum case we want to mask of zero bits which is granulairty 1 i.e. 2^0 = 1
 int const gstep=1;
 int b_sz = RubySystem::getBlockSizeBits();
-
+//int b_sz = 0; // This was incorrect and not needed so instead of deleting everywhere changing to zero
 /*CHECK*: int state --> State state? */
 
 unordered_map<Addr,RCEntryL1> RCTableL1; // L1 table
@@ -424,5 +424,10 @@ RCTable::isPresent_RCC(Addr address)
       
     }
   return false;
+}
+RCTable*
+RCTable:: myAddress()
+{
+  return this;
 } 
 

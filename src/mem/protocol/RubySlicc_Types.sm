@@ -229,6 +229,7 @@ structure (RCTable, external = "yes") { // Nirvedh
   void clearSharers(Addr);
   void split(Addr);
   void splitRCC_l2(Addr,MachineID); 
+  RCTable myAddress();
   bool isPresent_RCC(Addr);
   
 }
