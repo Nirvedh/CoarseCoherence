@@ -149,7 +149,7 @@ RCTable::setRCCL2State(Addr address,string state)
   {
     int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
     assert(count <= 1);
-    if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
+    if (count==1 && ((RCTableL2.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     {
       ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).state=state;
       return;
@@ -261,7 +261,7 @@ RCTable::removeSharer(Addr address,MachineID Requester)
   {
     int count = RCTableL2.count(maskLowOrderBits(address,gIter+ b_sz));
     assert(count <= 1);
-    if (count==1 && ((RCTableL1.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
+    if (count==1 && ((RCTableL2.find(maskLowOrderBits(address,gIter+b_sz)))->second).granularity==gIter)
     {
       ((RCTableL2.find(maskLowOrderBits(address,gIter+ b_sz)))->second).sharer.remove(Requester);
       return;

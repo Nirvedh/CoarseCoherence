@@ -404,9 +404,9 @@ State DavidgetRCCState(Addr addr){
       peek(L1unblockNetwork_in,  ResponseMsg) {
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
-        //DPRINTF(RubySlicc, "Addr: %s State: %s Sender: %s Type: %s Dest: %s\n",
-              //  in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
-                //in_msg.Sender, in_msg.Type, in_msg.Destination);
+        DPRINTF(RubySlicc, "Addr: %x State: %s Sender: %s Type: %s Dest: %s\n",
+                in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
+                in_msg.Sender, in_msg.Type, in_msg.Destination);
 
         assert(in_msg.Destination.isElement(machineID));
         if (in_msg.Type == CoherenceResponseType:EXCLUSIVE_UNBLOCK) {
