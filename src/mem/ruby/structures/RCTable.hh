@@ -98,6 +98,8 @@ class RCTable : public SimObject
     bool isPresent_RCC(Addr address);
     RCTable* myAddress(); // need this function for debugging 
     bool isL1Cache; 
+    std::unordered_map<Addr,RCEntryL1> RCTableL1; // L1 table
+    std::unordered_map<Addr,RCEntryL2> RCTableL2; // L2 table
   private:
      
 };

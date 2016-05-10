@@ -343,11 +343,11 @@ State DavidgetRCCState(Addr addr){
     } else if (type == CoherenceRequestType:UPGRADE) {
       DPRINTF(RubySlicc,"then the request is in UPGRADE\n");
       //if ( is_valid(cache_entry) && cache_entry.Sharers.isElement(requestor) ) { // Nirvedh may 1
-      if ( is_valid(cache_entry) && rcc.getSharers(addr).isElement(requestor) ) {
+      if ( is_valid(cache_entry) && rcc.isPresent_RCC(addr) && rcc.getSharers(addr).isElement(requestor) ) {
 	DPRINTF(RubySlicc,"then the request is in UPGRADE 1\n");
         return Event:L1_UPGRADE;
       } else {
-	if(rcc.getSharers(addr).isElement(requestor))
+	if(rcc.isPresent_RCC(addr) && rcc.getSharers(addr).isElement(requestor))
 	{
 	  DPRINTF(RubySlicc,"RCTABLE is working as we think\n");
 	}
@@ -355,7 +355,7 @@ State DavidgetRCCState(Addr addr){
 	 DPRINTF(RubySlicc, "David test upgrade cache hit"); 
 	}
 	DPRINTF(RubySlicc,"then the request is in UPGRADE 2\n");
-        return Event:L1_UPGRADE;
+        return Event:L1_GETX;
       }
     } else if (type == CoherenceRequestType:PUTX) {
       DPRINTF(RubySlicc,"then the request is in PUTX\n");
@@ -404,9 +404,9 @@ State DavidgetRCCState(Addr addr){
       peek(L1unblockNetwork_in,  ResponseMsg) {
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
-        //DPRINTF(RubySlicc, "Addr: %s State: %s Sender: %s Type: %s Dest: %s\n",
-              //  in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
-                //in_msg.Sender, in_msg.Type, in_msg.Destination);
+        DPRINTF(RubySlicc, "Addr: %x State: %s Sender: %s Type: %s Dest: %s\n",
+                in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
+                in_msg.Sender, in_msg.Type, in_msg.Destination);
 
         assert(in_msg.Destination.isElement(machineID));
         if (in_msg.Type == CoherenceResponseType:EXCLUSIVE_UNBLOCK) {
@@ -429,9 +429,10 @@ State DavidgetRCCState(Addr addr){
 */
   in_port(responseL2Network_in, ResponseMsg, responseToL2Cache, rank = 1) {
     if (responseL2Network_in.isReady(clockEdge())) {
-      DPRINTF(RubySlicc,"then the request is in L2");
+
       peek(responseL2Network_in, ResponseMsg) {
         // test wether it's from a local L1 or an off chip source
+	      DPRINTF(RubySlicc,"then the request is in L2 of type %s for address %x\n",in_msg.Type,in_msg.addr);
         assert(in_msg.Destination.isElement(machineID));
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
@@ -483,20 +484,20 @@ State DavidgetRCCState(Addr addr){
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
 	
-	if(rcc.isPresent_RCC(in_msg.addr)){
-	    if(DavidgetRCCState(in_msg.addr) == State:SS){
-	    DPRINTF(RubySlicc,"I bet we never get this ... L2 state in SS \n");
-	    }
-	     if(DavidgetRCCState(in_msg.addr) == State:MT){
-	     DPRINTF(RubySlicc,"see this a lot i bet... L2 state in MT \n");
-	    }
-	}
-	
+//	if(rcc.isPresent_RCC(in_msg.addr)){
+//	    if(DavidgetRCCState(in_msg.addr) == State:SS){
+//	    DPRINTF(RubySlicc,"I bet we never get this ... L2 state in SS \n");
+//	    }
+//	     if(DavidgetRCCState(in_msg.addr) == State:MT){
+//	     DPRINTF(RubySlicc,"see this a lot i bet... L2 state in MT \n");
+//	    }
+//	}
+//	
 	
 
-        //DPRINTF(RubySlicc, "Addr: %s State: %s Req: %s Type: %s Dest: %s\n",
-                //in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
-                //in_msg.Requestor, in_msg.Type, in_msg.Destination);
+        DPRINTF(RubySlicc, "in_port l1requst l2 Addr: %x State: %s Req: %s Type: %s Dest:\n",
+                in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
+                in_msg.Requestor, in_msg.Type);
 
         assert(machineIDToMachineType(in_msg.Requestor) == MachineType:L1Cache);
         assert(in_msg.Destination.isElement(machineID));
@@ -508,9 +509,19 @@ State DavidgetRCCState(Addr addr){
 		
 	
         //if (is_valid(cache_entry)) {
+	
+        DPRINTF(RubySlicc, "in_port valid entry Addr: %x State: %s Req: %s Type: %s Dest: %s\n",
+                in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
+                in_msg.Requestor, in_msg.Type, in_msg.Destination);
+
+
 		if((cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ //L2 has block, RCC permission good //Ravali
+		        DPRINTF(RubySlicc, "in_port valid cache rcc present Addr: %x State: %s Req: %s Type: %s Dest: %s\n",
+                in_msg.addr, getState(tbe, cache_entry, in_msg.addr),
+                in_msg.Requestor, in_msg.Type, in_msg.Destination);
+
           // The L2 contains the block, so proceeded with handling the request
-         
+			  DPRINTF(RubySlicc, "Forcing state change within L2 from to %s \n",rcc.getRCCL2State(in_msg.addr));
 		setState(tbe,cache_entry,in_msg.addr,DavidgetRCCState(in_msg.addr)); // overwrite cache entry to what RCC is /*CHECK*/
 		 trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
                                                 in_msg.Requestor, cache_entry),
@@ -790,15 +801,18 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 }
 
   action(ee_sendDataToGetXRequestor, "ee", desc="Send data from cache to GetX ID") {
-    enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
+  //peek(L1RequestL2Network_in, RequestMsg) {
+    enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
       assert(is_valid(tbe));
       assert(is_valid(cache_entry));
 	assert(rcc.isPresent_RCC(address));
       out_msg.addr := address;
       //out_msg.Type := CoherenceResponseType:DATA;
-	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE; //David May1
+	//out_msg.Type := CoherenceResponseType:RCC_ALLOCATE; //David May1
+	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE_EXCLUSIVE;
       out_msg.Sender := machineID;
-      out_msg.Destination.add(tbe.L1_GetX_ID);
+      out_msg.Destination.add(tbe.L1_GetX_ID); //Nirvedh may 5, after two hours of analysis I found that L2 might be sending allocates to wrong L1 controller
+      // out_msg.Destination.add(in_msg.Requestor);
       //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
       out_msg.DataBlk := cache_entry.DataBlk;
       //DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
@@ -810,7 +824,36 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 	  out_msg.granularity 	:= 		rcc.getGranularity(address);
 	  out_msg.mask			:= 		rcc.getMask(address);
     }
+    //}
   }
+
+  action(ee_sendDataToGetXRequestor_ver2, "eever", desc="Send data from cache to GetX ID") {
+  peek(L1RequestL2Network_in, RequestMsg) {
+    enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
+      assert(is_valid(tbe));
+      assert(is_valid(cache_entry));
+	assert(rcc.isPresent_RCC(address));
+      out_msg.addr := address;
+      //out_msg.Type := CoherenceResponseType:DATA;
+	//out_msg.Type := CoherenceResponseType:RCC_ALLOCATE; //David May1
+	out_msg.Type := CoherenceResponseType:RCC_ALLOCATE_EXCLUSIVE;
+      out_msg.Sender := machineID;
+      //out_msg.Destination.add(tbe.L1_GetX_ID); //Nirvedh may 5, after two hours of analysis I found that L2 might be sending allocates to wrong L1 controller
+       out_msg.Destination.add(in_msg.Requestor);
+      //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
+      out_msg.DataBlk := cache_entry.DataBlk;
+      //DPRINTF(RubySlicc, "Address: %s, Destination: %s, DataBlock: %s\n",
+            //  out_msg.addr, out_msg.Destination, out_msg.DataBlk);
+      out_msg.MessageSize := MessageSizeType:Response_Data;
+
+
+//David add
+	  out_msg.granularity 	:= 		rcc.getGranularity(address);
+	  out_msg.mask			:= 		rcc.getMask(address);
+    }
+    }
+  }
+
 
   action(f_sendInvToSharers, "f", desc="invalidate sharers for L2 replacement") {
     DPRINTF(RubySlicc,"f_sendInvToSharers\n");
@@ -1117,7 +1160,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
       assert(is_valid(tbe));
       assert(is_valid(cache_entry));
       out_msg.Addr := address;
-      out_msg.Type := CoherenceResponseType:RCC_allocate;
+      out_msg.Type := CoherenceResponseType:RCC_ALLOCATE_EXCLUSIVE;
       out_msg.Sender := machineID;
       out_msg.Destination.add(tbe.L1_GetX_ID);
       //DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
@@ -1208,6 +1251,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 
   action(setStateSS_MB,"ssSS_MB", desc="set RCC to SS_MB"){
 	assert(rcc.isPresent_RCC(address));
+
 	rcc.setRCCL2State(address,L2Cache_State_to_string(State:SS_MB));
   }
 
@@ -1466,7 +1510,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 
 
   transition(SS, L1_GETX, SS_MB) {
-    d_sendDataToRequestor;
+    ee_sendDataToGetXRequestor_ver2; // Change this may 5 1
     // fw_sendFwdInvToSharers; //David May1
     fwm_sendFwdInvToSharersMinusRequestor;
     ll_clearSharers;
@@ -1551,7 +1595,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
   transition(MT_MB_RCC,Mem_Data,MT){
     m_writeDataToCache;
     //e_sendDataToGetSRequestors; //David May1
-    a_sendDataToRCC_GetRequestor;
+    ee_sendDataToGetXRequestor;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
@@ -1561,13 +1605,13 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 
 
   transition(M, L1_GETX, MT_MB) {
-    d_sendDataToRequestor;
+    ee_sendDataToGetXRequestor_ver2; //// Change this may 5 2
     set_setMRU;
     uu_profileHit;
     nn_addSharer;
     
     // David add
-	a_l2splitRCC;
+	//a_l2splitRCC;
 	//setStateMT_MB;
     
     jj_popL1RequestQueue;
@@ -1623,7 +1667,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
     a_l2splitRCC;
 	//setStateMT_MB;
     
-    jj_popL1RequestQueue;
+    //jj_popL1RequestQueue;  //David May7
 
 //David add
 	
@@ -1642,6 +1686,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
     nn_addSharer;
     set_setMRU;
     jj_popL1RequestQueue;
+	//setStateSS; //David may7
 
 	//setStateMT_IIB;
   }
@@ -1662,13 +1707,17 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 	//setStateMCT_I;
   }
 
-  transition(MT, L1_PUTX, M) {
+  transition(MT, L1_PUTX, MT) {   //Nirvedh May 3
     ll_clearSharers;
     mr_writeDataToCacheFromRequest;
     t_sendWBAck;
     jj_popL1RequestQueue;
 
-	//setStateM;
+	//a_l2splitRCC;
+
+	setStateMT; // I know logically this should not be here but hello world doesnt work if you comment this out
+             // so this will need special handling. i think we must do a split here and send only one block to L1 back
+             // discuss with david
   }
 
   transition({SS_MB,MT_MB}, Exclusive_Unblock, MT) {
@@ -1704,6 +1753,16 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
     kd_wakeUpDependents;
 
 	setStateSS;
+  }
+
+//David May7
+  transition(MT_MB, {WB_Data, WB_Data_clean}, MT) {
+
+    m_writeDataToCache;
+    d_sendDataToRequestor;
+    o_popIncomingResponseQueue;
+    kd_wakeUpDependents;
+
   }
 
   transition(MT_SB, Unblock, SS) {

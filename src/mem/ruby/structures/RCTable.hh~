@@ -69,7 +69,7 @@ struct RCEntryL1 // Entry for a L1 RCTable
 struct RCEntryL2 // Entry for a L2 RCTable
 {
   int granularity;
-  L2Cache_State state; // Nirvedh checked that state is int in build files
+  std::string state; // Nirvedh checked that state is int in build files
   NetDest sharer;
 };
 class RubyRCTableParams;
@@ -96,7 +96,10 @@ class RCTable : public SimObject
     void split(Addr address);
     void splitRCC_l2(Addr address,MachineID Requester); 
     bool isPresent_RCC(Addr address);
+    RCTable* myAddress(); // need this function for debugging 
     bool isL1Cache; 
+    unordered_map<Addr,RCEntryL1> RCTableL1; // L1 table
+    unordered_map<Addr,RCEntryL2> RCTableL2; // L2 table
   private:
      
 };

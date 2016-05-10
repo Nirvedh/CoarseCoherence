@@ -343,11 +343,11 @@ State DavidgetRCCState(Addr addr){
     } else if (type == CoherenceRequestType:UPGRADE) {
       DPRINTF(RubySlicc,"then the request is in UPGRADE\n");
       //if ( is_valid(cache_entry) && cache_entry.Sharers.isElement(requestor) ) { // Nirvedh may 1
-      if ( is_valid(cache_entry) && rcc.getSharers(addr).isElement(requestor) ) {
+      if ( is_valid(cache_entry) && rcc.isPresent_RCC(addr) && rcc.getSharers(addr).isElement(requestor) ) {
 	DPRINTF(RubySlicc,"then the request is in UPGRADE 1\n");
         return Event:L1_UPGRADE;
       } else {
-	if(rcc.getSharers(addr).isElement(requestor))
+	if(rcc.isPresent_RCC(addr) && rcc.getSharers(addr).isElement(requestor))
 	{
 	  DPRINTF(RubySlicc,"RCTABLE is working as we think\n");
 	}
@@ -429,9 +429,10 @@ State DavidgetRCCState(Addr addr){
 */
   in_port(responseL2Network_in, ResponseMsg, responseToL2Cache, rank = 1) {
     if (responseL2Network_in.isReady(clockEdge())) {
-      DPRINTF(RubySlicc,"then the request is in L2");
+
       peek(responseL2Network_in, ResponseMsg) {
         // test wether it's from a local L1 or an off chip source
+	      DPRINTF(RubySlicc,"then the request is in L2 of type %s for address %x\n",in_msg.Type,in_msg.addr);
         assert(in_msg.Destination.isElement(machineID));
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
@@ -1250,6 +1251,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 
   action(setStateSS_MB,"ssSS_MB", desc="set RCC to SS_MB"){
 	assert(rcc.isPresent_RCC(address));
+
 	rcc.setRCCL2State(address,L2Cache_State_to_string(State:SS_MB));
   }
 
@@ -1609,7 +1611,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
     nn_addSharer;
     
     // David add
-	a_l2splitRCC;
+	//a_l2splitRCC;
 	//setStateMT_MB;
     
     jj_popL1RequestQueue;
@@ -1665,7 +1667,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
     a_l2splitRCC;
 	//setStateMT_MB;
     
-    jj_popL1RequestQueue;
+    //jj_popL1RequestQueue;  //David May7
 
 //David add
 	
@@ -1684,6 +1686,7 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
     nn_addSharer;
     set_setMRU;
     jj_popL1RequestQueue;
+	//setStateSS; //David may7
 
 	//setStateMT_IIB;
   }
@@ -1704,13 +1707,15 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
 	//setStateMCT_I;
   }
 
-  transition(MT, L1_PUTX, M) {   //Nirvedh May 3
+  transition(MT, L1_PUTX, MT) {   //Nirvedh May 3
     ll_clearSharers;
     mr_writeDataToCacheFromRequest;
     t_sendWBAck;
     jj_popL1RequestQueue;
 
-	setStateM; // I know logically this should not be here but hello world doesnt work if you comment this out
+	//a_l2splitRCC;
+
+	setStateMT; // I know logically this should not be here but hello world doesnt work if you comment this out
              // so this will need special handling. i think we must do a split here and send only one block to L1 back
              // discuss with david
   }
@@ -1748,6 +1753,17 @@ DPRINTF(RubySlicc, "b_forwardRequestToExclusive\n");
     kd_wakeUpDependents;
 
 	setStateSS;
+  }
+
+//David May7
+  transition(MT_MB, {WB_Data, WB_Data_clean}, MT) {
+
+    m_writeDataToCache;
+    d_sendDataToRequestor;
+    o_popIncomingResponseQueue;
+    jj_popL1RequestQueue;
+    kd_wakeUpDependents;
+
   }
 
   transition(MT_SB, Unblock, SS) {

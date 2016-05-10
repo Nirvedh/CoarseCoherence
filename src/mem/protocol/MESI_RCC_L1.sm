@@ -527,7 +527,7 @@ State DavidgetRCCState(Addr addr){
 
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
-      DPRINTF(RubySlicc,"response from L2 for address %x and state %s and type is %s\n",in_msg.addr, getState(tbe, cache_entry, in_msg.addr), in_msg.Type ); //May 5 
+      DPRINTF(RubySlicc,"response from L2 for address %x and cache state %s and type is %s\n",in_msg.addr, getState(tbe, cache_entry, in_msg.addr), in_msg.Type ); //May 5 
       //setState(tbe, cache_entry, in_msg.addr, DavidgetRCCState(in_msg.addr)); //overwrite cache entry to do correct transition *CHECK*
       //DPRINTF(RubySlicc,"forced state change for address %x and state %s and type is %s\n",in_msg.addr, getState(tbe, cache_entry, in_msg.addr), in_msg.Type ); //May 5 
       
@@ -547,7 +547,7 @@ State DavidgetRCCState(Addr addr){
               trigger(Event:DataS_fromL1, in_msg.addr, cache_entry, tbe);
               DPRINTF(RubySlicc,"debugging data 3 %x\n",in_msg.addr);
           } else if ( (getPendingAcks(tbe) - in_msg.AckCount) == 0 ) {
-          DPRINTF(RubySlicc,"debugging data 3 %x and state is %s\n",in_msg.addr,StateToString(cache_entry.CacheState));
+          DPRINTF(RubySlicc,"debugging data 3 %x and cache line state is %s\n",in_msg.addr,StateToString(cache_entry.CacheState));
             trigger(Event:Data_all_Acks, in_msg.addr, cache_entry, tbe);
           } else { 
           DPRINTF(RubySlicc,"debugging data 4 (this will cause panic as its currently not supported) %x\n",in_msg.addr);
@@ -592,8 +592,10 @@ State DavidgetRCCState(Addr addr){
 		bool cache_valid := is_valid(cache_entry);
 		State orig_state := getState(tbe, cache_entry, in_msg.addr);
 		setState(tbe, cache_entry, in_msg.addr, DavidgetRCCState(in_msg.addr)); //overwrite cache entry to do correct transition *CHECK*
+		DPRINTF(RubySlicc,"It gets a message from L2, address %x of type %s\n",in_msg.addr,in_msg.Type);
 
         if (in_msg.Type == CoherenceRequestType:INV) {
+
 			//David add
 			if(!(cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ 	//cache entry was invalid -- must restore to invalid after done
 				trigger(Event:Inv, in_msg.addr, cache_entry, tbe);
@@ -608,12 +610,15 @@ State DavidgetRCCState(Addr addr){
           // upgrade transforms to GETX due to race
 			//David add
 			if(!(cache_valid) && rcc.isPresent_RCC(in_msg.addr)){ 	//cache entry was invalid -- must restore to invalid after done //Ravali
+				DPRINTF(RubySlicc,"We don't expect GETX here May7 for address %x\n",in_msg.addr);
 				trigger(Event:Fwd_GETX, in_msg.addr, cache_entry, tbe);
 				setState(tbe, cache_entry, in_msg.addr, orig_state); //restore to invalid after
+					
 			}
 			else{ // do normal thing -- end David add
-			
-         		trigger(Event:Fwd_GETX, in_msg.addr, cache_entry, tbe);
+				DPRINTF(RubySlicc,"We expect GETX here May7 for address %x\n",in_msg.addr);	
+         			trigger(Event:Fwd_GETX, in_msg.addr, cache_entry, tbe);
+				
 			}
         } else if (in_msg.Type == CoherenceRequestType:GETS) {
 						//David add
@@ -656,7 +661,7 @@ State DavidgetRCCState(Addr addr){
   in_port(mandatoryQueue_in, RubyRequest, mandatoryQueue, desc="...", rank = 0) {
     if (mandatoryQueue_in.isReady(clockEdge())) {
       peek(mandatoryQueue_in, RubyRequest, block_on="LineAddress") {
-      DPRINTF(RubySlicc, "it does get a %s request at address: %x and address of rctable is %x,and state of RCTable is %s\n",in_msg.Type,in_msg.LineAddress,rcc.myAddress(),rcc.getRCCL1State(in_msg.LineAddress)); 
+      DPRINTF(RubySlicc, "it does get a %s request at address: %x and address of rctable is %x,and state of L1 RCTable is %s\n",in_msg.Type,in_msg.LineAddress,rcc.myAddress(),rcc.getRCCL1State(in_msg.LineAddress)); 
       DPRINTF(RubySlicc,"1\n");
 
         // Check for data access to blocks in I-cache and ifetchs to blocks in D-cache
@@ -702,7 +707,7 @@ State DavidgetRCCState(Addr addr){
                DPRINTF(RubySlicc,"5\n");
 							//Match in RCC! This means if we have permission, we can do RCC_GET
 							if(mandatory_request_type_to_event(in_msg.Type) == Event:Load || mandatory_request_type_to_event(in_msg.Type) == Event:Ifetch){
-                 if((isReadState(DavidgetRCCState(in_msg.LineAddress)))) // Nirvedh May 3 Hello World we have to check for different cases
+                 if((isReadState(DavidgetRCCState(in_msg.LineAddress))) || (isWriteState(DavidgetRCCState(in_msg.LineAddress)))) // Nirvedh May 3 Hello World we have to check for different cases //David May7
 								//have RCC hit, and asked for read, so we must have permission already
 								{
                   DPRINTF(RubySlicc,"5.5\n");
@@ -773,10 +778,10 @@ State DavidgetRCCState(Addr addr){
 							if(rcc.isPresent_RCC(in_msg.LineAddress)){ //Ravali
 							//Match in RCC! This means if we have permission, we can do RCC_GET
 								if(mandatory_request_type_to_event(in_msg.Type) == Event:Load || mandatory_request_type_to_event(in_msg.Type) == Event:Ifetch){
-                    if((isReadState(DavidgetRCCState(in_msg.LineAddress)))) // Nirvedh May 3
-                    {
-									    trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);
-                    }
+								    if((isReadState(DavidgetRCCState(in_msg.LineAddress))) || (isWriteState(DavidgetRCCState(in_msg.LineAddress)))) // Nirvedh May 3 //David May7
+								    {
+									 trigger(Event:RCC_HIT, in_msg.LineAddress, L1Dcache_entry, TBEs[in_msg.LineAddress]);
+								    }
 								}
 								if(mandatory_request_type_to_event(in_msg.Type) == Event:Store && (isWriteState(DavidgetRCCState(in_msg.LineAddress)))){
 								//have RCC hit, asked for write, and we also have permission
@@ -989,7 +994,9 @@ State DavidgetRCCState(Addr addr){
   }
 
   action(d2_sendDataToL2, "d2", desc="send data to the L2 cache because of M downgrade") {
+	DPRINTF(RubySlicc,"got to d2_sendDataToL2\n");
     enqueue(responseL1Network_out, ResponseMsg, l1_response_latency) {
+	DPRINTF(RubySlicc,"About to send data of address %x to L2\n",address);
       if(is_valid(cache_entry)){ // check if you have data, if so send to L2. May not have data, but L2 forwarded a getX to you anyways
 	      out_msg.addr := address;
 	      out_msg.Type := CoherenceResponseType:DATA;
@@ -999,6 +1006,7 @@ State DavidgetRCCState(Addr addr){
 	      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
 		                  l2_select_low_bit, l2_select_num_bits, intToID(0)));
 	      out_msg.MessageSize := MessageSizeType:Response_Data;
+		DPRINTF(RubySlicc,"sent data of address %x to L2\n",address);
 	}
     }
   }
@@ -1307,11 +1315,14 @@ State DavidgetRCCState(Addr addr){
 
 //David TODO -- insert new actions / functions from RCC C++ file
   action(a_splitRCC, "sRCC", desc="split the RCC if possible. If lowest granularity, send signal to invalidate.") {
-	peek(responseL1Network_in, ResponseMsg) {
-      	assert(is_valid(cache_entry));
-	assert(rcc.isPresent_RCC(address));
+	DPRINTF(RubySlicc,"Want to split\n");	
+	peek(requestL1Network_in, RequestMsg) {
+		DPRINTF(RubySlicc,"Want to split address %x to L2\n",address);	
+      		assert(is_valid(cache_entry));
+		assert(rcc.isPresent_RCC(address));
 		rcc.split(in_msg.addr);
 	}
+	DPRINTF(RubySlicc,"Done split address %x to L2\n",address);	
   }
 
   action(a_issueRCC_GET, "RCCg", desc="Issue RCC_GET") {
@@ -1401,15 +1412,16 @@ State DavidgetRCCState(Addr addr){
 
   action(a_multiplePUTX, "mPUTX", desc = "write back all modified data to the L2") {
 	//David TODO
+
 	assert(rcc.isPresent_RCC(address));
 	int gran := rcc.getGranularity(address);
 	Addr mask := rcc.getMask(address);
    DPRINTF(RubySlicc,"multiple PUTX happening");
 
 	//stupid SM files don't support loops. I apologize for the hacky code. Sorry Professor Hill  ='( 
-	if(gran==64){
+	if(gran==6){
 		DavidissuePUTX(mask,getCacheEntry(mask));
-		DavidissuePUTX(makeNextStrideAddress(mask,64),getCacheEntry(makeNextStrideAddress(mask,64)));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
 		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
 		DavidissuePUTX(makeNextStrideAddress(mask,3),getCacheEntry(makeNextStrideAddress(mask,3)));
 		DavidissuePUTX(makeNextStrideAddress(mask,4),getCacheEntry(makeNextStrideAddress(mask,4)));
@@ -1475,9 +1487,9 @@ State DavidgetRCCState(Addr addr){
 
 	}
 
-	if(gran==32){
+	if(gran==5){
 		DavidissuePUTX(mask,getCacheEntry(mask));
-		DavidissuePUTX(makeNextStrideAddress(mask,32),getCacheEntry(makeNextStrideAddress(mask,32)));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
 		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
 		DavidissuePUTX(makeNextStrideAddress(mask,3),getCacheEntry(makeNextStrideAddress(mask,3)));
 		DavidissuePUTX(makeNextStrideAddress(mask,4),getCacheEntry(makeNextStrideAddress(mask,4)));
@@ -1510,9 +1522,9 @@ State DavidgetRCCState(Addr addr){
 		DavidissuePUTX(makeNextStrideAddress(mask,31),getCacheEntry(makeNextStrideAddress(mask,31)));
 
 	}
-	if(gran==16){
+	if(gran==4){
 		DavidissuePUTX(mask,getCacheEntry(mask));
-		DavidissuePUTX(makeNextStrideAddress(mask,16),getCacheEntry(makeNextStrideAddress(mask,16)));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
 		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
 		DavidissuePUTX(makeNextStrideAddress(mask,3),getCacheEntry(makeNextStrideAddress(mask,3)));
 		DavidissuePUTX(makeNextStrideAddress(mask,4),getCacheEntry(makeNextStrideAddress(mask,4)));
@@ -1529,9 +1541,9 @@ State DavidgetRCCState(Addr addr){
 		DavidissuePUTX(makeNextStrideAddress(mask,15),getCacheEntry(makeNextStrideAddress(mask,15)));
 	}
 
-	if(gran==8){
+	if(gran==3){
 		DavidissuePUTX(mask,getCacheEntry(mask));
-		DavidissuePUTX(makeNextStrideAddress(mask,8),getCacheEntry(makeNextStrideAddress(mask,8)));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
 		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
 		DavidissuePUTX(makeNextStrideAddress(mask,3),getCacheEntry(makeNextStrideAddress(mask,3)));
 		DavidissuePUTX(makeNextStrideAddress(mask,4),getCacheEntry(makeNextStrideAddress(mask,4)));
@@ -1540,20 +1552,20 @@ State DavidgetRCCState(Addr addr){
 		DavidissuePUTX(makeNextStrideAddress(mask,7),getCacheEntry(makeNextStrideAddress(mask,7)));
 	}
 
-	if(gran==4){
+	if(gran==2){
 		DavidissuePUTX(mask,getCacheEntry(mask));
-		DavidissuePUTX(makeNextStrideAddress(mask,4),getCacheEntry(makeNextStrideAddress(mask,4)));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
 		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
 		DavidissuePUTX(makeNextStrideAddress(mask,3),getCacheEntry(makeNextStrideAddress(mask,3)));
 	}
 
-	if(gran==2){
+	if(gran==1){
 		DavidissuePUTX(mask,getCacheEntry(mask));
-		DavidissuePUTX(makeNextStrideAddress(mask,2),getCacheEntry(makeNextStrideAddress(mask,2)));
+		DavidissuePUTX(makeNextStrideAddress(mask,1),getCacheEntry(makeNextStrideAddress(mask,1)));
 	}
 
 	else{
-		DavidissuePUTX(mask,getCacheEntry(mask));
+		//DavidissuePUTX(mask,getCacheEntry(mask)); //David May7
 	}
 
 
@@ -1840,7 +1852,7 @@ a_splitRCC;
 //David modify
   transition(E, Fwd_GETX, I) {
     forward_eviction_to_cpu;
-    //d_sendDataToRequestor;
+   // d_sendDataToRequestor; //David May7
 
 //David add
 	d2_sendDataToL2; //David May1 -- I think we need, L2 awaiting response?
@@ -1857,7 +1869,7 @@ a_splitRCC;
 
 //David modify
   transition(E, {Fwd_GETS, Fwd_GET_INSTR}, S) {
-    //d_sendDataToRequestor;
+    //d_sendDataToRequestor; //David May7
 	// no DavidPutX needed -- whole block was in E, nothing was dirtied
     //a_multiplePUTX;
 	setStateS;
@@ -1890,8 +1902,9 @@ a_splitRCC;
     f_sendDataToL2;  //David May1 -- not sure -- may need to keep as L2 probably is awaiting response, even though we're about to PUTX everything
    
 //David add
-  a_splitRCC;
+
 	a_multiplePUTX; //David May1 -- before the split, write everything back that you're losing permission to
+	  a_splitRCC; // David May7 change ordering
 	
  l_popRequestQueue;
 
@@ -1907,14 +1920,15 @@ a_splitRCC;
 //David-modified
   transition(M, Fwd_GETX, I) {
     forward_eviction_to_cpu;
-    //d_sendDataToRequestor;
+    //d_sendDataToRequestor;//David May7
     d2_sendDataToL2; //David May1 -- I think we need -- L2 awaits response, even though we will PUTX
 
 //David add
 	////a_sendAckNack;
-  a_splitRCC;
+
 	a_multiplePUTX;
-	setStateM_I;
+	 a_splitRCC; //David May7 change ordering
+	//setStateM_I; //May7
 	//a_sendRCC_allocateToRequestor;
 
     l_popRequestQueue;
@@ -1924,7 +1938,7 @@ a_splitRCC;
 
 //David modified
   transition(M, {Fwd_GETS, Fwd_GET_INSTR}, S) {
-    //d_sendDataToRequestor;
+    //d_sendDataToRequestor; //David May7
     d2_sendDataToL2; //David May1 -- I think we need -- L2 awaits response, even though we will PUTX
 
 //David add
@@ -2400,11 +2414,11 @@ setStateE;
   }
 
 //David May6 add
-  transition({S,M,E},WB_Ack) {
+  transition({S,M,E,I},WB_Ack,I) {
   // Do nothing, these are acks given back from the multiple putx section, ideally we should stall till all acks are recieved back... but when to know the last is hard. oh well.
  	// s_deallocateTBE;
 	o_popIncomingResponseQueue;
-//	kd_wakeUpDependents; //David May6 thinking I should, but doesn't seem to make difference
+	kd_wakeUpDependents; //David May6 thinking I should, but doesn't seem to make difference
   //setStateS;
   }
  
